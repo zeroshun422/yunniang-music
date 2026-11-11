@@ -1,0 +1,53 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # GitHub Actions 访问 GitHub Releases 正常，但显式指定更稳
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: Ensure electron binary
+        run: |
+          if [ ! -x node_modules/electron/dist/electron ]; then
+            echo "electron 二进制缺失，重新安装"
+            node node_modules/electron/install.js
+          fi
+          node_modules/electron/dist/electron --version
+
+      - name: Type check
+        run: npx tsc --noEmit
+        continue-on-error: false
+
+      - name: Build
+        run: npm run build
+
+      - name: Package (AppImage + deb)
+        run: npx electron-builder --linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            release/*.AppImage
+            release/*.deb
+          retention-days: 14
