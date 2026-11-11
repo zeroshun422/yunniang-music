@@ -25,11 +25,13 @@ jobs:
 
       - name: Ensure electron binary
         run: |
+          # 只检查文件是否存在，不执行 electron（CI 中缺 SUID sandbox 会崩溃）
           if [ ! -x node_modules/electron/dist/electron ]; then
-            echo "electron 二进制缺失，重新安装"
+            echo "electron 二进制缺失，重新下载"
             node node_modules/electron/install.js
           fi
-          node_modules/electron/dist/electron --version
+          ls -la node_modules/electron/dist/electron
+          echo "electron binary OK"
 
       - name: Type check
         run: npx tsc --noEmit
@@ -42,6 +44,8 @@ jobs:
         run: npx electron-builder --linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # CI 环境无需代码签名，避免额外依赖
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
