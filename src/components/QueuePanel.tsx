@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { usePlayer } from '@/store/player'
-import { coverUrl, formatDuration } from '@/api/ncm'
+import { songCoverUrl, formatDuration } from '@/api/ncm'
 import { IconClose, IconPlay, IconPause } from './Icons'
 
 export function QueuePanel({ onClose }: { onClose: () => void }) {
@@ -67,7 +67,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
               {i === currentIndex ? (playing ? '▶' : '❚❚') : i + 1}
             </span>
             <img
-              src={coverUrl(s.al?.picUrl || s.album?.picUrl, 60)}
+              src={songCoverUrl(s, 60)}
               style={{ width: 32, height: 32, borderRadius: 5, objectFit: 'cover', background: 'var(--bg-3)' }}
               alt=""
             />

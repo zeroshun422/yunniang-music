@@ -105,7 +105,7 @@ export async function loginByCookie(cookie: string) {
 /** 登录状态 */
 export async function loginStatus() {
   const r = await window.yun.ncm('/login/status?t=' + Date.now())
-  return r as { code: number; data?: { profile: UserProfile; account?: any } }
+  return r as { code?: number; data?: { code?: number; profile: UserProfile; account?: any } }
 }
 
 export async function logout() {
@@ -125,10 +125,35 @@ export const SEARCH_TYPES = [
   { type: 1004, label: 'MV' },
 ] as const
 
+/**
+ * 搜索（带回退链）
+ * 网易云有两个搜索接口：
+ *   - /cloudsearch：结果更准、更稳定，但部分分类字段结构不同
+ *   - /search：老接口，容易被风控返回 405 / -460
+ * 因此优先 cloudsearch，失败再退回 search，两者都失败才抛错。
+ */
 export async function search(keywords: string, type = 1, limit = 30, offset = 0) {
-  return api<any>(
-    `/search?keywords=${encodeURIComponent(keywords)}&type=${type}&limit=${limit}&offset=${offset}`
-  )
+  const kw = encodeURIComponent(keywords)
+
+  // 1) 优先 cloudsearch
+  try {
+    const r = await api<any>(`/cloudsearch?keywords=${kw}&type=${type}&limit=${limit}&offset=${offset}`, { retries: 2 })
+    if (r && r.code === 200 && r.result) return r
+  } catch (e) { /* 继续回退 */ }
+
+  // 2) 回退 /search
+  try {
+    const r2 = await api<any>(`/search?keywords=${kw}&type=${type}&limit=${limit}&offset=${offset}`, { retries: 2 })
+    if (r2 && r2.code === 200) return r2
+    // 接口返回了非 200（如 405），抛出以便 UI 提示
+    throw new ApiError(
+      r2?.msg || r2?.message || `搜索接口暂不可用（code ${r2?.code}），请稍后重试`,
+      r2?.code ?? -1
+    )
+  } catch (e: any) {
+    if (e instanceof ApiError) throw e
+    throw new ApiError('搜索失败：' + (e?.message || '未知错误'), -1)
+  }
 }
 
 export async function searchSuggest(keywords: string) {
@@ -250,6 +275,36 @@ export async function toplistDetail(id: number) {
   return r.playlist
 }
 
+// --------------------------- 歌手 ---------------------------
+
+/** 歌手详情（含简介、粉丝数） */
+export async function artistDetail(id: number) {
+  const r = await api<{ data: { artist: any; user?: any } }>(`/artist/detail?id=${id}`)
+  return r.data?.artist || null
+}
+
+/** 歌手热门歌曲（最多 50 首） */
+export async function artistTopSongs(id: number) {
+  const r = await api<{ songs: Song[] }>(`/artist/top/song?id=${id}`)
+  return r.songs || []
+}
+
+/** 歌手全部歌曲（分页） */
+export async function artistSongs(id: number, limit = 50, offset = 0, order = 'hot') {
+  const r = await api<{ songs: Song[]; more?: boolean; total?: number }>(
+    `/artist/songs?id=${id}&limit=${limit}&offset=${offset}&order=${order}`
+  )
+  return { songs: r.songs || [], more: !!r.more, total: r.total || 0 }
+}
+
+/** 歌手专辑 */
+export async function artistAlbums(id: number, limit = 30, offset = 0) {
+  const r = await api<{ hotAlbums: any[]; more?: boolean }>(
+    `/artist/album?id=${id}&limit=${limit}&offset=${offset}`
+  )
+  return r.hotAlbums || []
+}
+
 // --------------------------- 用户音乐库 ---------------------------
 
 /** 我喜欢的音乐（用 likelist 拿全部 id，再批量取详情） */
@@ -291,6 +346,121 @@ export async function userCreatedPlaylists(uid: number) {
 
 export async function userPlaylistSubscribers(uid: number) {
   return userSubscribedPlaylists(uid)
+}
+
+/**
+ * 获取「我喜欢的音乐」完整数据（含添加时间）。
+ * 关键：playlist/detail 的 tracks 会被截断到 1000 首，
+ * 但 trackIds 是完整的，且每项带 at（添加时间戳）。
+ * 因此用 trackIds 作为主数据源，tracks 仅用于补齐歌曲详情。
+ */
+export async function likePlaylistWithTime(uid: number) {
+  // 1. 找到「我喜欢的音乐」特殊歌单（specialType === 5）
+  const pls = await userSubscribedPlaylists(uid, 1000, 0)
+  const likePl = (pls || []).find((p: any) => p.specialType === 5)
+  if (!likePl) throw new ApiError('未找到「我喜欢的音乐」歌单', 404, true)
+
+  // 2. 拉取详情拿 trackIds（完整 + 含添加时间）
+  const r = await api<any>(`/playlist/detail?id=${likePl.id}&s=8`)
+  const trackIds: any[] = r?.playlist?.trackIds || []
+  const tracks: Song[] = r?.playlist?.tracks || []
+
+  // 3. 建立 id -> 歌曲 映射（tracks 可能不含全部歌曲）
+  const byId = new Map<number, Song>()
+  for (const t of tracks) byId.set(t.id, t)
+
+  const ids = trackIds.map((x) => x.id).filter((x) => typeof x === 'number')
+  const atMap = new Map<number, number>()
+  for (const x of trackIds) {
+    if (typeof x.id === 'number' && typeof x.at === 'number') atMap.set(x.id, x.at)
+  }
+
+  // 4. 补齐 tracks 里缺失的歌曲详情
+  const missing = ids.filter((id) => !byId.has(id))
+  if (missing.length) {
+    for (let i = 0; i < missing.length; i += 200) {
+      const chunk = missing.slice(i, i + 200)
+      try {
+        const d = await api<{ songs: Song[] }>(`/song/detail?ids=${chunk.join(',')}`)
+        for (const s of d.songs || []) byId.set(s.id, s)
+      } catch (e) { /* 单批失败不影响整体 */ }
+    }
+  }
+
+  // 5. 按喜欢时间倒序组装（最近喜欢的在前）
+  const ordered: { song: Song; at: number }[] = []
+  for (const id of ids) {
+    const song = byId.get(id)
+    if (song) ordered.push({ song, at: atMap.get(id) || 0 })
+  }
+  ordered.sort((a, b) => b.at - a.at)
+
+  return {
+    playlist: likePl,
+    items: ordered,                                  // [{ song, at }]
+    songs: ordered.map((x) => x.song!),              // 纯歌曲数组
+    total: ids.length,
+  }
+}
+
+// --------------------------- 听歌排行 ---------------------------
+
+export interface PlayRecordItem {
+  song: Song
+  playCount: number
+  score?: number
+}
+
+/**
+ * 获取用户听歌排行。
+ * @param uid 用户 id
+ * @param range 'week' 最近一周 | 'all' 全部时间
+ */
+export async function userPlayRecord(uid: number, range: 'week' | 'all' = 'week'): Promise<PlayRecordItem[]> {
+  const type = range === 'week' ? 1 : 0
+  const r = await api<any>(`/user/record?uid=${uid}&type=${type}&timestamp=${Date.now()}`)
+  const raw: any[] = (type === 1 ? r.weekData : r.allData) || r.allData || r.weekData || []
+  return raw
+    .filter((x) => x && x.song && typeof x.song.id === 'number')
+    .map((x) => ({
+      song: x.song as Song,
+      playCount: typeof x.playCount === 'number' ? x.playCount : 0,
+      score: x.score,
+    }))
+}
+
+/**
+ * 从听歌排行中「抽取」一首近期播放次数较高的歌作为种子。
+ *
+ * 策略：加权随机，而不是永远取第一名。
+ *   - 只考虑播放次数 >= max(1, 最高次数 * 0.3) 的候选，保证确实是「近期常听」
+ *   - 权重 = playCount，播放越多越容易被抽中，但每次结果可能不同
+ *   - 允许排除上次选中的歌曲，避免连续两次抽到同一首
+ */
+export function pickSeedFromRecords(
+  records: PlayRecordItem[],
+  excludeId?: number
+): PlayRecordItem | null {
+  if (!records.length) return null
+
+  const usable = records.filter((r) => r.song && typeof r.song.id === 'number')
+  if (!usable.length) return null
+
+  const maxCount = Math.max(...usable.map((r) => r.playCount), 1)
+  // 至少达到最高播放量的 30%，滤掉偶然听过一次的歌
+  const threshold = Math.max(1, maxCount * 0.3)
+  let pool = usable.filter((r) => r.playCount >= threshold && r.song.id !== excludeId)
+  // 排除后为空则放宽
+  if (!pool.length) pool = usable.filter((r) => r.song.id !== excludeId)
+  if (!pool.length) pool = usable
+
+  const totalWeight = pool.reduce((sum, r) => sum + Math.max(1, r.playCount), 0)
+  let target = Math.random() * totalWeight
+  for (const item of pool) {
+    target -= Math.max(1, item.playCount)
+    if (target <= 0) return item
+  }
+  return pool[pool.length - 1]
 }
 
 // --------------------------- 音乐云盘 ---------------------------
@@ -371,9 +541,50 @@ export async function probeAudio(id: number, level: QualityLevel) {
   return window.yun.probeAudio(id, level)
 }
 
-export function coverUrl(url: string | undefined, size = 300) {
-  if (!url) return ''
-  return url.replace(/\?.*$/, '') + `?param=${size}y${size}`
+/**
+ * 统一读取歌单播放量。
+ * 网易云各接口字段大小写不一致：
+ *   - /recommend/resource -> playcount （全小写）
+ *   - /top/playlist、/playlist/detail -> playCount （驼峰）
+ */
+export function getPlayCount(pl: any): number {
+  if (!pl) return 0
+  const v = pl.playCount ?? pl.playcount ?? pl.listenerCount ?? 0
+  return typeof v === 'number' && v > 0 ? v : 0
+}
+
+export function coverUrl(url: string | undefined | null, size = 300) {
+  if (!url || typeof url !== 'string') return ''
+  const clean = url.replace(/\?.*$/, '')
+  if (!clean) return ''
+  return clean + `?param=${size}y${size}`
+}
+
+/**
+ * 从「任意网易云歌曲/歌单对象」中提取封面地址。
+ * 不同接口的字段结构差异很大，必须逐个兜底：
+ *   - /song/detail      -> song.al.picUrl
+ *   - /personal_fm      -> song.album.picUrl
+ *   - /personalized/newsong -> item.picUrl（顶层）
+ *   - /search           -> song.al.picUrl 或 song.album.picUrl（可能为空）
+ *   - 歌单               -> playlist.coverImgUrl / playlist.picUrl
+ */
+export function songCoverUrl(song: any, size = 300): string {
+  if (!song) return ''
+  const candidates = [
+    song.al?.picUrl,
+    song.album?.picUrl,
+    song.picUrl,
+    song.simpleSong?.al?.picUrl,
+    song.simpleSong?.album?.picUrl,
+    song.song?.al?.picUrl,
+    song.songInfo?.al?.picUrl,
+    song.coverImgUrl,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return coverUrl(c, size)
+  }
+  return ''
 }
 
 export function formatDuration(ms: number | undefined) {

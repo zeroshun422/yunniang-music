@@ -23,6 +23,14 @@ const NCM_API_PORT_MAX = 47240
 if (process.env.YUNNIANG_DISABLE_SANDBOX !== '1') {
   app.commandLine.appendSwitch('no-sandbox')
 }
+
+// 关键：显式设置 WM_CLASS，让桌面环境能把窗口与 .desktop 条目/图标正确关联。
+// 若不同步设置，Cinnamon/GNOME 任务栏会显示默认占位图标。
+app.setName('yunniang-music')
+if (process.platform === 'linux') {
+  // Linux 下 WM_CLASS 由 app name 推导，需在 ready 之前固定
+  app.commandLine.appendSwitch('class', 'yunniang-music')
+}
 app.commandLine.appendSwitch('disable-gpu-sandbox')
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
@@ -138,6 +146,20 @@ async function startEmbeddedApi() {
   console.log('[api] 模块路径:', apiRoot)
 
   process.env.NETEASE_API_ROOT = apiRoot
+
+  // 关键：NeteaseCloudMusicApi/util/request.js 在「被 require 时」就会同步读取
+  // <tmpdir>/anonymous_token，若文件不存在会直接抛 ENOENT 导致应用启动崩溃。
+  // 因此必须在 require 之前确保该文件存在（全新系统首次启动时它并不存在）。
+  const anonTokenPath = path.resolve(require('node:os').tmpdir(), 'anonymous_token')
+  if (!fs.existsSync(anonTokenPath)) {
+    try {
+      fs.writeFileSync(anonTokenPath, '', { encoding: 'utf-8', mode: 0o600 })
+      console.log('[api] 已创建 anonymous_token:', anonTokenPath)
+    } catch (e) {
+      console.warn('[api] 无法创建 anonymous_token:', e.message)
+    }
+  }
+
   const serverJs = path.join(apiRoot, "server.js")
   const { serveNcmApi } = require(serverJs)
   const generateConfig = require(path.join(apiRoot, 'generateConfig.js'))
@@ -556,6 +578,31 @@ function mergeCookie(oldCookie, setCookieArray) {
 // ---------------------------------------------------------------------------
 // 窗口
 // ---------------------------------------------------------------------------
+
+/**
+ * 加载应用图标。
+ * Electron 从 asar 内按路径加载 PNG 作为窗口图标时经常失败，
+ * 因此显式读成 Buffer 再 createFromBuffer，确保 _NET_WM_ICON 被正确设置。
+ */
+function loadAppIcon(): Electron.NativeImage {
+  const candidates = [
+    path.join(__dirname, '../resources/icon.png'),
+    path.join(process.resourcesPath || '', 'app.asar', 'resources', 'icon.png'),
+    path.join(process.resourcesPath || '', 'resources', 'icon.png'),
+    path.join(process.resourcesPath || '', 'icon.png'),
+  ]
+  for (const p of candidates) {
+    try {
+      if (p && fs.existsSync(p)) {
+        const buf = fs.readFileSync(p)
+        const img = nativeImage.createFromBuffer(buf)
+        if (!img.isEmpty()) return img
+      }
+    } catch (e) { /* try next */ }
+  }
+  return nativeImage.createEmpty()
+}
+
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -565,7 +612,7 @@ function createMainWindow() {
     frame: false,
     backgroundColor: '#0b0b12',
     show: false,
-    icon: path.join(__dirname, '../resources/icon.png'),
+    icon: loadAppIcon(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

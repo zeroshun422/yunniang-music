@@ -12,6 +12,7 @@ import {
   IconHeartMode,
   IconClose,
   IconPlus,
+  IconShuffle,
 } from '@/components/Icons'
 
 // ---------------------------------------------------------------------------
@@ -116,7 +117,7 @@ function HeartRow({
       </div>
 
       <img
-        src={ncm.coverUrl(song.al?.picUrl || song.album?.picUrl, 80)}
+        src={ncm.songCoverUrl(song, 80)}
         alt=""
         onClick={onPlay}
         style={{
@@ -211,12 +212,20 @@ export function HeartModePage() {
   const [searchResults, setSearchResults] = useState<Song[]>([])
   const [searchErr, setSearchErr] = useState<string | null>(null)
   const [seed, setSeed] = useState<Song | null>(null)
+  // 近期常听（用于「随机抽一首」）
+  const [recLoading, setRecLoading] = useState(false)
+  const [records, setRecords] = useState<ncm.PlayRecordItem[]>([])
+  const [recErr, setRecErr] = useState<string | null>(null)
+  const [recRange, setRecRange] = useState<'week' | 'all'>('week')
 
   // 歌单选择
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [plLoading, setPlLoading] = useState(true)
   const [plError, setPlError] = useState<string | null>(null)
-  const [playlistId, setPlaylistId] = useState<number>(ncm.RADAR_PLAYLIST_ID)
+  // 注意：/playmode/intelligence/list 只接受「用户自己的歌单」，
+  // 传入私人雷达等官方歌单会返回 400「不支持该歌单类型」。
+  // 因此默认值用 0 表示未选择，加载完用户歌单后自动选中第一个。
+  const [playlistId, setPlaylistId] = useState<number>(0)
 
   // 生成结果
   const [entries, setEntries] = useState<HeartEntry[]>([])
@@ -240,12 +249,66 @@ export function HeartModePage() {
     try {
       const all = await ncm.userSubscribedPlaylists(user.userId, 100, 0)
       // 过滤掉无 id 的异常项，取前 8 个供选择
-      setPlaylists((all || []).filter((p) => p && typeof p.id === 'number').slice(0, 8))
+      const usable = (all || []).filter((p) => p && typeof p.id === 'number').slice(0, 8)
+      setPlaylists(usable)
+      // 自动选中第一个用户歌单（接口只支持用户自己的歌单）
+      if (usable.length > 0) {
+        setPlaylistId((cur) => (cur && usable.some((p) => p.id === cur) ? cur : usable[0].id))
+      }
     } catch (e: any) {
       setPlaylists([])
       setPlError((e && e.message) || '收藏歌单加载失败')
     } finally {
       setPlLoading(false)
+    }
+  }
+
+  // 从「近期播放次数较高」的歌曲中抽取种子
+  async function drawRecentSeed() {
+    if (!user?.userId) {
+      setRecErr('请先登录，才能读取你的听歌排行')
+      return
+    }
+    setRecLoading(true)
+    setRecErr(null)
+    try {
+      const list = records.length ? records : await ncm.userPlayRecord(user.userId, recRange)
+      if (!records.length) setRecords(list)
+      if (!list.length) {
+        setRecErr(recRange === 'week'
+          ? '最近一周没有听歌记录，试试切换到「全部时间」'
+          : '还没有听歌记录')
+        return
+      }
+      const picked = ncm.pickSeedFromRecords(list, seed?.id)
+      if (picked) {
+        setSeed(picked.song)
+        setSearchResults([])
+        setSearchErr(null)
+        setGenerated(false)
+        setEntries([])
+      }
+    } catch (e: any) {
+      setRecErr(e?.message || '读取听歌排行失败')
+    } finally {
+      setRecLoading(false)
+    }
+  }
+
+  // 切换统计范围后重新拉取
+  async function changeRange(r: 'week' | 'all') {
+    setRecRange(r)
+    setRecords([])
+    setRecErr(null)
+    if (!user?.userId) return
+    setRecLoading(true)
+    try {
+      const list = await ncm.userPlayRecord(user.userId, r)
+      setRecords(list)
+    } catch (e: any) {
+      setRecErr(e?.message || '读取听歌排行失败')
+    } finally {
+      setRecLoading(false)
     }
   }
 
@@ -290,6 +353,11 @@ export function HeartModePage() {
     setEntries([])
     setGenerated(false)
     try {
+      if (!playlistId) {
+        setGenError('请先选择一个你自己的歌单作为推荐参考（心动模式不支持官方歌单）')
+        setGenLoading(false)
+        return
+      }
       const data = await ncm.heartMode(seed.id, playlistId, 20)
       const list = parseHeartData(Array.isArray(data) ? data : [])
       if (!list.length) {
@@ -315,9 +383,7 @@ export function HeartModePage() {
   const showMenu = (e: React.MouseEvent, song: Song) =>
     useSongMenu.getState().show(e.clientX, e.clientY, song)
   const playlistName =
-    playlistId === ncm.RADAR_PLAYLIST_ID
-      ? '私人雷达'
-      : playlists.find((p) => p.id === playlistId)?.name || '所选歌单'
+    playlists.find((p) => p.id === playlistId)?.name || '所选歌单'
 
   // -------------------------------------------------------------------------
   // 初始加载（收藏歌单）
@@ -395,7 +461,43 @@ export function HeartModePage() {
         <button className="btn primary" onClick={doSearch} disabled={!kw.trim() || searching}>
           {searching ? '搜索中…' : '搜索'}
         </button>
+
+        <button
+          className="btn ghost"
+          onClick={drawRecentSeed}
+          disabled={recLoading || !user}
+          title={user ? '从你近期播放次数较高的歌曲中随机抽取一首' : '登录后可用'}
+        >
+          <IconShuffle size={14} />
+          {recLoading ? '读取中…' : '抽一首近期常听'}
+        </button>
       </div>
+
+      {/* 近期常听的范围切换 */}
+      <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span className="small muted">听歌排行范围：</span>
+        <button
+          className={`chip ${recRange === 'week' ? 'active' : ''}`}
+          style={{ padding: '3px 11px', fontSize: 11.5 }}
+          onClick={() => changeRange('week')}
+          disabled={recLoading}
+        >
+          最近一周
+        </button>
+        <button
+          className={`chip ${recRange === 'all' ? 'active' : ''}`}
+          style={{ padding: '3px 11px', fontSize: 11.5 }}
+          onClick={() => changeRange('all')}
+          disabled={recLoading}
+        >
+          全部时间
+        </button>
+        {records.length > 0 && (
+          <span className="small muted">· 共 {records.length} 首候选</span>
+        )}
+      </div>
+
+      {recErr && <div className="notice-box" style={{ marginBottom: 12 }}>{recErr}</div>}
 
       {searchErr && <div className="error-box">{searchErr}</div>}
 
@@ -428,7 +530,7 @@ export function HeartModePage() {
               style={{ height: 46, padding: '0 10px', borderRadius: 6, gap: 12, cursor: 'pointer' }}
             >
               <img
-                src={ncm.coverUrl(s.al?.picUrl, 60)}
+                src={ncm.songCoverUrl(s, 60)}
                 alt=""
                 style={{
                   width: 32,
@@ -470,7 +572,7 @@ export function HeartModePage() {
           }}
         >
           <img
-            src={ncm.coverUrl(seed.al?.picUrl, 80)}
+            src={ncm.songCoverUrl(seed, 80)}
             alt=""
             style={{
               width: 44,
@@ -537,12 +639,6 @@ export function HeartModePage() {
       )}
 
       <div className="tabs" style={{ marginBottom: 20 }}>
-        <button
-          className={`chip ${playlistId === ncm.RADAR_PLAYLIST_ID ? 'active' : ''}`}
-          onClick={() => setPlaylistId(ncm.RADAR_PLAYLIST_ID)}
-        >
-          私人雷达（默认）
-        </button>
         {playlists.map((p) => (
           <button
             key={p.id}
@@ -557,7 +653,7 @@ export function HeartModePage() {
 
       {playlists.length === 0 && !plError && (
         <div className="small muted" style={{ marginBottom: 18 }}>
-          暂时没有读取到你的收藏歌单，将默认使用私人雷达作为推荐参考。
+          没有读取到你的歌单。心动模式需要至少一个「你自己创建的或收藏的歌单」作为推荐参考。
         </div>
       )}
 

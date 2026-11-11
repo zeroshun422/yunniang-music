@@ -365,9 +365,9 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   grid-template-columns: 42px 1fr 132px 90px 56px;
   align-items: center;
-  min-height: 50px;
+  min-height: 52px;
   height: auto;
-  padding: 3px 0;
+  padding: 4px 0;
   border-radius: 7px;
   font-size: 13.5px;
   color: var(--text-1);
@@ -391,9 +391,26 @@ a { color: inherit; text-decoration: none; }
 
 .song-main {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
   padding-right: 14px;
+}
+
+.song-main-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.song-cover {
+  width: 34px;
+  height: 34px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: var(--bg-3);
+  flex-shrink: 0;
 }
 .song-name {
   color: var(--text-0);
@@ -543,6 +560,33 @@ a { color: inherit; text-decoration: none; }
 
 .volume-wrap { display: flex; align-items: center; gap: 8px; }
 .volume-slider { width: 76px; }
+
+/* 播放栏「喜欢」按钮 */
+.pb-like {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s, transform 0.12s;
+}
+.pb-like:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+.pb-like:active:not(:disabled) { transform: scale(0.9); }
+.pb-like.liked {
+  color: var(--accent);
+}
+.pb-like.liked:hover:not(:disabled) {
+  color: #ff6b6b;
+}
+.pb-like:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
 /* ============ 滑块 ============ */
 .slider {

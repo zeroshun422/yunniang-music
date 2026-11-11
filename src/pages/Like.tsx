@@ -8,9 +8,10 @@ import { SongList } from '@/components/SongRow'
 import { useSongMenu } from '@/components/SongContextMenu'
 import { IconPlay, IconHeart, IconSearch, IconMusic } from '@/components/Icons'
 
-type SortKey = 'default' | 'name' | 'artist' | 'duration'
+type SortKey = 'default' | 'likeTime' | 'name' | 'artist' | 'duration'
 
 const SORTS: { key: SortKey; label: string }[] = [
+  { key: 'likeTime', label: '最近喜欢' },
   { key: 'default', label: '默认顺序' },
   { key: 'name', label: '按名称' },
   { key: 'artist', label: '按歌手' },
@@ -28,7 +29,10 @@ export function LikePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
-  const [sort, setSort] = useState<SortKey>('default')
+  const [sort, setSort] = useState<SortKey>('likeTime')
+  // 歌曲 id -> 喜欢时间戳（毫秒）
+  const [likeTimes, setLikeTimes] = useState<Map<number, number>>(new Map())
+  const [totalCount, setTotalCount] = useState(0)
 
   const uid = user?.userId
 
@@ -46,16 +50,13 @@ export function LikePage() {
     setLoading(true)
     setError(null)
     try {
-      const ids = await ncm.likeList(uid)
-      if (!ids.length) {
-        setSongs([])
-        return
-      }
-      const detail = await ncm.songDetail(ids)
-      // 保持接口返回顺序，过滤掉详情缺失的项
-      setSongs(detail.filter((s) => s && s.id))
+      // 用带「喜欢时间」的完整接口（trackIds 不会被截断到 1000 首）
+      const data = await ncm.likePlaylistWithTime(uid)
+      setLikeTimes(new Map(data.items.map((x) => [x.song.id, x.at])))
+      setSongs(data.songs.filter((s) => s && s.id))
+      if (data.total > 0) setTotalCount(data.total)
       // 顺带同步一下全局喜欢集合，避免状态不一致
-      if (likedIds.size !== ids.length) void loadLikes(uid)
+      if (likedIds.size !== data.songs.length) void loadLikes(uid)
     } catch (e: any) {
       setError(e?.message || '加载喜欢的音乐失败')
     } finally {
@@ -87,7 +88,10 @@ export function LikePage() {
         return name.includes(kw) || artists.includes(kw) || album.includes(kw)
       })
     }
-    if (sort === 'name') {
+    if (sort === 'likeTime') {
+      // 最近喜欢的在前（时间戳倒序）
+      list = [...list].sort((a, b) => (likeTimes.get(b.id) || 0) - (likeTimes.get(a.id) || 0))
+    } else if (sort === 'name') {
       list = [...list].sort((a, b) => collator.compare(a.name, b.name))
     } else if (sort === 'artist') {
       list = [...list].sort((a, b) => {
@@ -99,11 +103,11 @@ export function LikePage() {
       list = [...list].sort((a, b) => (b.dt || b.duration || 0) - (a.dt || a.duration || 0))
     }
     return list
-  }, [songs, keyword, sort])
+  }, [songs, keyword, sort, likeTimes])
 
   const cover = useMemo(() => {
     const first = songs.find((s) => s.al?.picUrl || s.album?.picUrl)
-    return first ? ncm.coverUrl(first.al?.picUrl || first.album?.picUrl, 400) : ''
+    return first ? ncm.songCoverUrl(first, 400) : ''
   }, [songs])
 
   const currentId = queue[currentIndex]?.id
@@ -112,7 +116,9 @@ export function LikePage() {
     <div className="page-header">
       <h1 className="page-title">我喜欢的音乐</h1>
       <span className="page-sub">
-        {loading ? '正在同步…' : `共 ${songs.length} 首${keyword ? ` · 匹配 ${filtered.length} 首` : ''}`}
+        {loading
+          ? '正在同步…'
+          : `共 ${totalCount || songs.length} 首${keyword ? ` · 匹配 ${filtered.length} 首` : ''}`}
       </span>
       <button
         className="btn sm ghost"
@@ -203,7 +209,7 @@ export function LikePage() {
           </div>
           <div style={{ fontSize: 26, fontWeight: 650, marginBottom: 6 }}>我喜欢的音乐</div>
           <div className="muted" style={{ fontSize: 13, marginBottom: 4 }}>
-            {user?.nickname} · 共 <span style={{ color: 'var(--text-0)', fontWeight: 600 }}>{songs.length}</span> 首
+            {user?.nickname} · 共 <span style={{ color: 'var(--text-0)', fontWeight: 600 }}>{totalCount || songs.length}</span> 首
           </div>
           <div className="muted small" style={{ marginBottom: 16 }}>
             每一次点亮红心，都会出现在这里

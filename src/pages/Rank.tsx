@@ -63,7 +63,7 @@ export function RankPage() {
           coverImgUrl: r.coverImgUrl,
           updateFrequency: r.updateFrequency,
           trackCount: r.trackCount,
-          playCount: r.playCount,
+          playCount: ncm.getPlayCount(r),
           description: r.description,
         }))
       setRanks(list)

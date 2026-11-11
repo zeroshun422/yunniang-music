@@ -214,7 +214,7 @@ export function HomePage() {
                 <div className="card-sub">
                   {playingId === p.id
                     ? '正在加载…'
-                    : `播放 ${ncm.formatCount(p.playCount)} · ${p.trackCount || 0} 首`}
+                    : `播放 ${ncm.formatCount(ncm.getPlayCount(p))} · ${p.trackCount || 0} 首`}
                 </div>
               </div>
             ))}

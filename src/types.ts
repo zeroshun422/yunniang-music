@@ -37,6 +37,8 @@ export interface Playlist {
   description?: string
   trackCount?: number
   playCount?: number
+  /** 部分接口（如 /recommend/resource）用小写 playcount */
+  playcount?: number
   creator?: { nickname: string; avatarUrl?: string; userId?: number }
   tracks?: Song[]
   subscribed?: boolean

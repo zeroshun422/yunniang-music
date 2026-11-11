@@ -47,7 +47,10 @@ export function QualityMenu() {
       </button>
 
       {open && (
-        <div className="menu quality-panel" style={{ bottom: '100%', right: 0, marginBottom: 8 }}>
+        <div
+          className="menu quality-panel"
+          style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: 8 }}
+        >
           <div style={{ padding: '6px 11px 8px', fontSize: 11, color: 'var(--text-3)' }}>
             播放音质
           </div>

@@ -215,7 +215,7 @@ export function PlaylistDetailPage() {
               {ncm.formatCount(trackCount)} 首歌曲
             </span>
             <span className="small muted">
-              {ncm.formatCount(playlist.playCount)} 次播放
+              {ncm.formatCount(ncm.getPlayCount(playlist))} 次播放
             </span>
             {typeof (playlist as any).subscribedCount === 'number' && (
               <span className="small muted">

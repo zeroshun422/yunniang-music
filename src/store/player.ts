@@ -56,6 +56,8 @@ interface PlayerState {
 }
 
 let audioEl: HTMLAudioElement | null = null
+// 播放请求序号：用于丢弃过期请求的结果，避免快速切歌时旧探测结果覆盖新歌曲
+let playSeq = 0
 
 function detectQuality(): QualityLevel {
   const saved = localStorage.getItem('yun-quality')
@@ -299,6 +301,16 @@ function shuffleArray<T>(arr: T[]): T[] {
   return arr
 }
 
+
+// 代理地址缓存：避免每次切歌都走一次 IPC（也是切歌竞态的诱因之一）
+let _proxyCfg: { proxyBase: string } | null = null
+async function getProxyConfig() {
+  if (_proxyCfg) return _proxyCfg
+  const c = await window.yun.getConfig()
+  _proxyCfg = { proxyBase: c.proxyBase }
+  return _proxyCfg
+}
+
 async function loadAndPlay(
   song: Song,
   set: (p: Partial<PlayerState>) => void,
@@ -306,14 +318,20 @@ async function loadAndPlay(
   startAt = 0
 ) {
   const { quality } = get()
-  set({ loading: true, loadError: null, currentTime: startAt })
+  const mySeq = ++playSeq
+  set({ loading: true, loadError: null, currentTime: startAt, actualBr: 0, actualQuality: '', qualityNotice: null })
 
   try {
     // 1. 先探测音质（用于 UI 显示实际拿到什么）
     const probe = await ncm.probeAudio(song.id, quality).catch(() => null)
 
+    // 过期请求直接丢弃，避免覆盖当前歌曲的音质显示
+    if (mySeq !== playSeq) return
+
     // 2. 歌词
     const ly = await ncm.lyric(song.id).catch(() => ({ lines: [], hasTrans: false } as any))
+
+    if (mySeq !== playSeq) return
 
     if (!probe || probe.code !== 200 || !probe.actualLevel) {
       const msg = probe?.error || '无法获取播放地址（可能是版权限制 / VIP 限制 / 网络风控）'
@@ -322,13 +340,19 @@ async function loadAndPlay(
     }
 
     // 3. 设置音频源（经主进程代理，自动带 Referer）
-    const cfg = await window.yun.getConfig()
+    // 注意：getConfig 是异步的，切歌时可能有多个并发调用；
+    // 必须在 await 之后再次校验序号，否则旧请求会覆盖新歌曲的 src。
+    const cfg = await getProxyConfig()
+    if (mySeq !== playSeq) return
+
     const src = `${cfg.proxyBase}/audio?id=${song.id}&level=${quality}`
 
     const audio = get()._audio || audioEl!
     audio.src = src
     audio.currentTime = 0
     audio.volume = get().muted ? 0 : get().volume
+
+    if (mySeq !== playSeq) return
 
     const notice = ncm_qualityNotice(quality, probe.actualLevel, probe.br)
 
@@ -342,9 +366,35 @@ async function loadAndPlay(
       loading: false,
     })
 
-    await audio.play().catch((e) => {
-      set({ playing: false, loadError: '播放被浏览器阻止：' + e.message })
+    await audio.play().catch((e: any) => {
+      const msg = String(e?.message || e || '')
+      // 切歌时旧请求被新请求打断属于正常现象，不应提示为错误
+      const isInterrupted =
+        /interrupted by a new load request/i.test(msg) ||
+        /The play\(\) request was interrupted/i.test(msg) ||
+        e?.name === 'AbortError'
+      // 已经被更新的播放请求取代，静默忽略
+      if (isInterrupted || mySeq !== playSeq) return
+
+      set({
+        playing: false,
+        loadError:
+          e?.name === 'NotAllowedError'
+            ? '播放需要用户交互，请点击播放按钮重试'
+            : '播放失败：' + (msg || '未知错误'),
+      })
     })
+
+    // 播放启动后异步校准一次真实码率（此时代理已解析出最终可用的音质）
+    ncm
+      .probeAudio(song.id, quality)
+      .then((p2) => {
+        if (mySeq !== playSeq) return
+        if (p2 && p2.code === 200 && p2.br > 0) {
+          set({ actualBr: p2.br, actualQuality: p2.actualLevel || get().actualQuality })
+        }
+      })
+      .catch(() => {})
 
     if (get().showDesktopLyric) {
       window.yun.lyricUpdate({ current: '♪ ' + song.name, trans: '', next: '' })

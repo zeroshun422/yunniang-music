@@ -159,7 +159,7 @@ export function RoamPage() {
 
   const cur = songs[index]
   const rest = useMemo(() => songs.slice(index + 1, index + 6), [songs, index])
-  const cover = cur ? ncm.coverUrl(cur.al?.picUrl || cur.album?.picUrl, 400) : ''
+  const cover = cur ? ncm.songCoverUrl(cur, 400) : ''
   const currentId = queue[currentIndex]?.id
   const liked = cur ? likedIds.has(cur.id) : false
 
@@ -367,9 +367,9 @@ export function RoamPage() {
                     >
                       {i + 1}
                     </div>
-                    {ncm.coverUrl(s.al?.picUrl || s.album?.picUrl, 80) ? (
+                    {ncm.songCoverUrl(s, 80) ? (
                       <img
-                        src={ncm.coverUrl(s.al?.picUrl || s.album?.picUrl, 80)}
+                        src={ncm.songCoverUrl(s, 80)}
                         alt=""
                         style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover', background: 'var(--bg-3)' }}
                       />

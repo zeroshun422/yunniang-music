@@ -208,7 +208,7 @@ export function RadarPage() {
 
           <div className="row" style={{ gap: 16, fontSize: 12, color: 'var(--text-3)', marginBottom: 14 }}>
             <span>共 {tracks.length} 首</span>
-            {playlist.playCount ? <span>播放 {ncm.formatCount(playlist.playCount)}</span> : null}
+            {ncm.getPlayCount(playlist) > 0 ? <span>播放 {ncm.formatCount(ncm.getPlayCount(playlist))}</span> : null}
             {playlist.creator?.nickname ? <span>by {playlist.creator.nickname}</span> : null}
           </div>
 

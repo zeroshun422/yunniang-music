@@ -322,6 +322,33 @@ npx electron scripts/visual-test.js
 
 ---
 
+## 稳定性说明（实战修复记录）
+
+本项目在真实账号下做了完整联调，修复了下列问题（均已复现并验证）：
+
+| 问题 | 根因 | 处理 |
+|---|---|---|
+| 首次启动崩溃 | `NeteaseCloudMusicApi` 在 require 时同步读取 `anonymous_token`，全新系统无此文件 | 在 require 前预创建 |
+| 重启后掉登录 | `/login/status` 的 code 在 `data.code`，判断了顶层 `code`，误删有效凭据 | 修正判定 + 网络失败不误删 |
+| 音质菜单点了没反应 | `.menu` 是 `fixed`，配 `bottom:100%` 会跑到视口外 | 改 `absolute` |
+| 封面空白 | 各接口封面字段不同（`picUrl`/`al.picUrl`/`album.picUrl`） | 统一多字段兜底取值 |
+| 点歌手无跳转 | 点击后原地重复搜索歌手类型 | 新增歌手详情页 |
+| 心动模式必失败 | 该接口只接受「用户自己的歌单」，默认传了官方雷达歌单 | 改为自动选中用户歌单 |
+| 播放量显示 0 | 接口字段大小写不一致（`playcount` vs `playCount`） | 统一取值函数 |
+| 搜索返回空 | `/search` 被限流返回 405 | 改用 `/cloudsearch` 优先 + 回退 |
+| 切歌报"播放被阻止" | `getConfig()` 异步，旧请求晚到覆盖了新歌 `src` | 请求序号校验 + 静默忽略打断 |
+| 我喜欢少 221 首 | `playlist/detail` 的 `tracks` 截断到 1000 首 | 用完整 `trackIds` + 补齐详情 |
+
+### 关于音质与风控
+
+`/song/url/v1` 存在**随机风控**（返回 `-460`，实测触发率约 40–60%），本项目做了三层处理：
+
+1. 清除伪造的 `X-Real-IP`（`generateConfig` 会写入随机中国 IP，与真实出口不符会触发风控）
+2. 同档位最多重试 5 次，短随机退避
+3. 档位降级链 `jymaster → hires → lossless → exhigh → higher → standard`
+
+**音质受账号权益限制**：客户端会如实反映服务端返回的真实格式（通过下载文件头校验确认），若被降级会明确提示，不会虚标「无损」。
+
 ## 已知限制
 
 | 限制 | 说明 |

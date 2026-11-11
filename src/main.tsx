@@ -15,6 +15,7 @@ import { LikePage } from './pages/Like'
 import { SubscribedPage } from './pages/Subscribed'
 import { CloudPage } from './pages/Cloud'
 import { PlaylistDetailPage } from './pages/PlaylistDetail'
+import { ArtistPage } from './pages/Artist'
 import { SettingsPage } from './pages/Settings'
 import { DesktopLyric } from './pages/DesktopLyric'
 import './styles/global.css'
@@ -44,6 +45,7 @@ if (window.location.hash.includes('desktop-lyric')) {
           <Route path="subscribed" element={<SubscribedPage />} />
           <Route path="cloud" element={<CloudPage />} />
           <Route path="playlist/:id" element={<PlaylistDetailPage />} />
+          <Route path="artist/:id" element={<ArtistPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

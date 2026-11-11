@@ -109,8 +109,13 @@ export function SearchPage() {
       const list = pickList(result, tp)
       setItems((prev) => (append ? [...prev, ...list] : list))
 
-      const count = result[COUNT_KEY[tp]]
-      setTotal(typeof count === 'number' ? count : null)
+      // 只认「当前搜索类型」对应的计数字段，避免串到其它类型
+      const ownKey = COUNT_KEY[tp]
+      const ownCount =
+        (typeof result[ownKey] === 'number' ? result[ownKey] : undefined) ??
+        (typeof (r as any)[ownKey] === 'number' ? (r as any)[ownKey] : undefined)
+      // 接口未返回总数时，若本页已满则视为还有更多，用 null 让 UI 不显示具体数字
+      setTotal(typeof ownCount === 'number' ? ownCount : null)
 
       const more =
         typeof result.hasMore === 'boolean' ? result.hasMore : list.length >= PAGE_SIZE
@@ -306,10 +311,10 @@ export function SearchPage() {
       ) : (
         <div>
           <div className="search-meta">
-            「{query}」共找到
-            {total !== null ? ` ${ncm.formatCount(total)} ` : ' '}
-            个{activeLabel}
-            结果
+            「{query}」
+            {total !== null
+              ? ` 共找到 ${ncm.formatCount(total)} 个${activeLabel}结果`
+              : ` 的${activeLabel}结果`}
           </div>
 
           {type === 1 && (
@@ -358,7 +363,7 @@ export function SearchPage() {
                   </div>
                   <div className="card-title">{p.name}</div>
                   <div className="card-sub">
-                    {ncm.formatCount(p.playCount)} 次播放
+                    {ncm.formatCount(ncm.getPlayCount(p))} 次播放
                     {p.creator?.nickname ? ` · ${p.creator.nickname}` : ''}
                   </div>
                 </div>
@@ -372,8 +377,8 @@ export function SearchPage() {
                 <div
                   className="card"
                   key={a.id}
-                  onClick={() => runSearch(a.name, type)}
-                  title={`搜索「${a.name}」`}
+                  onClick={() => navigate(`/artist/${a.id}`)}
+                  title={`查看歌手「${a.name}」`}
                 >
                   <div className="card-cover-wrap">
                     <img

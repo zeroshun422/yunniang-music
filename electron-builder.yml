@@ -27,11 +27,13 @@ linux:
   category: AudioVideo;Audio;Player
   icon: resources/icon.png
   executableName: yunniang-music
+  # Cinnamon/GNOME 用 WM_CLASS 关联窗口与图标，必须与 main.ts 里 app.setName 一致
   desktop:
     Name: 云娘音乐
     Comment: 网易云音乐 Linux 桌面客户端
     Categories: AudioVideo;Audio;Player;
     Keywords: music;netease;player;audio;
+    StartupWMClass: yunniang-music
   synopsis: 网易云音乐 Linux 桌面客户端
   description: 云娘音乐 — 支持账号登录、无损音质、每日推荐、私人雷达、心动模式、私人漫游等功能的网易云音乐桌面客户端。
   maintainer: yunniang <yunniang@example.com>

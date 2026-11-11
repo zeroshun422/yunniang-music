@@ -48,7 +48,7 @@ function CardGrid({
           </div>
           <div className="card-title">{p.name}</div>
           <div className="card-sub">
-            {ncm.formatCount(p.playCount)} 次播放
+            {ncm.formatCount(ncm.getPlayCount(p))} 次播放
             {p.creator?.nickname ? ` · ${p.creator.nickname}` : ''}
           </div>
         </div>

@@ -47,13 +47,13 @@
     "esbuild@0.24.2": true,
     "esbuild@0.25.12": true
   },
-  "homepage": "https://github.com/zeroshun/yunniang-music#readme",
+  "homepage": "https://github.com/zeroshun422/yunniang-music#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zeroshun/yunniang-music.git"
+    "url": "https://github.com/zeroshun422/yunniang-music.git"
   },
   "bugs": {
-    "url": "https://github.com/zeroshun/yunniang-music/issues"
+    "url": "https://github.com/zeroshun422/yunniang-music/issues"
   },
   "keywords": [
     "netease",

@@ -1,6 +1,6 @@
 import React from 'react'
 import { usePlayer } from '@/store/player'
-import { formatDuration } from '@/api/ncm'
+import { formatDuration, songCoverUrl } from '@/api/ncm'
 import { IconLyric } from '@/components/Icons'
 
 /**
@@ -61,7 +61,7 @@ export function NowPlayingPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30, height: 'calc(100vh - 260px)' }}>
         <div>
           <img
-            src={song.al?.picUrl || song.album?.picUrl || ''}
+            src={songCoverUrl(song, 400)}
             alt=""
             style={{ width: '100%', maxWidth: 340, aspectRatio: 1, borderRadius: 14, objectFit: 'cover', background: 'var(--bg-3)', boxShadow: 'var(--shadow-2)' }}
           />

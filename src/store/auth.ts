@@ -31,10 +31,15 @@ export const useAuth = create<AuthState>((set, get) => ({
       if (saved) {
         const st = await ncm.loginStatus().catch(() => null)
         const profile = st?.data?.profile
-        if (profile && st?.code === 200) {
+        // 注意：/login/status 的 code 位于 data.code（顶层可能没有 code）
+        const ok = st?.data?.code === 200 || st?.code === 200
+        if (profile && ok) {
           set({ user: profile })
+        } else if (st === null) {
+          // 网络失败：不要误删凭据，只标记未登录
+          set({ cookie: saved, user: null })
         } else {
-          // cookie 失效，清理
+          // 真正判定登录态失效才清理
           await window.yun.clearCookie()
           set({ cookie: '', user: null })
         }
@@ -49,7 +54,8 @@ export const useAuth = create<AuthState>((set, get) => ({
   refreshUser: async () => {
     const st = await ncm.loginStatus().catch(() => null)
     const profile = st?.data?.profile
-    if (profile && st?.code === 200) set({ user: profile })
+    const ok = st?.data?.code === 200 || st?.code === 200
+    if (profile && ok) set({ user: profile })
   },
 
   loginByQrPoll: async (key) => {

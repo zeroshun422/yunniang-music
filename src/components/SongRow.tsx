@@ -1,6 +1,6 @@
 import React from 'react'
 import type { Song } from '@/types'
-import { formatDuration } from '@/api/ncm'
+import { formatDuration, songCoverUrl } from '@/api/ncm'
 import { IconPlay, IconHeart, IconPlus } from './Icons'
 
 export interface SongRowProps {
@@ -52,12 +52,21 @@ export function SongRow({
       </div>
 
       <div className="song-main">
+        <img
+          className="song-cover"
+          src={songCoverUrl(song, 80)}
+          alt=""
+          loading="lazy"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden' }}
+        />
+        <div className="song-main-text">
         <div className="song-name">
           {song.name}
           {isVip && <span className="song-tag">VIP</span>}
           {song.mv ? <span className="song-tag" style={{ borderColor: '#6a9cf5', color: '#6a9cf5' }}>MV</span> : null}
         </div>
         {showAlbum && <div className="song-album">{album}</div>}
+        </div>
       </div>
 
       <div className="song-artist" title={artists}>{artists}</div>

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { usePlayer } from '@/store/player'
-import { formatDuration, coverUrl } from '@/api/ncm'
+import { useLibrary } from '@/store/library'
+import { useAuth } from '@/store/auth'
+import { formatDuration, songCoverUrl } from '@/api/ncm'
 import { QualityMenu } from './QualityMenu'
 import {
   IconPlay, IconPause, IconNext, IconPrev, IconVolume, IconVolumeMute,
@@ -16,8 +18,32 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
     toggle, next, prev, seek, setVolume, toggleMute, setRepeat, toggleShuffle,
   } = usePlayer()
 
+  const { likedIds, toggleLike, loadLikes } = useLibrary()
+  const { user } = useAuth()
+
   const [queueOpen, setQueueOpen] = useState(false)
   const [lyricOpen, setLyricOpen] = useState(false)
+  const [likeBusy, setLikeBusy] = useState(false)
+
+  // 首次进入时同步一次「喜欢」列表，保证红心状态准确
+  useEffect(() => {
+    if (user?.userId && likedIds.size === 0) loadLikes(user.userId).catch(() => {})
+  }, [user?.userId])
+
+  const currentSong = queue[currentIndex]
+  const isLiked = !!(currentSong && likedIds.has(currentSong.id))
+
+  const handleToggleLike = async () => {
+    if (!currentSong || !user || likeBusy) return
+    setLikeBusy(true)
+    try {
+      await toggleLike(currentSong.id)
+    } catch (e) {
+      // 失败时静默回滚（toggleLike 内部已回滚状态）
+    } finally {
+      setLikeBusy(false)
+    }
+  }
   const [dragging, setDragging] = useState(false)
   const [dragVal, setDragVal] = useState(0)
 
@@ -38,7 +64,7 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
           <>
             <img
               className="pb-cover"
-              src={coverUrl(song.al?.picUrl || song.album?.picUrl, 120) || ''}
+              src={songCoverUrl(song, 120)}
               alt=""
               style={{ cursor: 'pointer' }}
               onClick={() => setLyricOpen((o) => !o)}
@@ -50,6 +76,14 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
                 {(song.ar || song.artists || []).map((a) => a.name).join(' / ') || '未知歌手'}
               </div>
             </div>
+            <button
+              className={`pb-like ${isLiked ? 'liked' : ''}`}
+              title={!user ? '登录后可收藏' : isLiked ? '取消喜欢' : '喜欢'}
+              disabled={!user || likeBusy}
+              onClick={handleToggleLike}
+            >
+              <IconHeart size={18} filled={isLiked} />
+            </button>
           </>
         ) : (
           <div className="pb-meta">
