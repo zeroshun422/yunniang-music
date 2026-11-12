@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/Sidebar'
 import { PlayerBar } from '@/components/PlayerBar'
 import { TitleBar } from '@/components/TitleBar'
 import { SongContextMenu } from '@/components/SongContextMenu'
+import { useUi } from '@/store/ui'
 import { LoginPage } from '@/pages/Login'
 
 export default function App() {
@@ -13,6 +14,8 @@ export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const [lyricOn, setLyricOn] = useState(false)
+  // 抽屉打开时给主内容区让位，避免面板覆盖页面内容（P0 修复）
+  const drawerOpen = useUi((s) => s.drawer !== null)
 
   useEffect(() => { bootstrap() }, [])
 
@@ -41,7 +44,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <TitleBar />
-      <div className="app-body">
+      <div className={`app-body${drawerOpen ? ' drawer-open' : ''}`}>
         <Sidebar />
         <div className="main-area">
           <Outlet />

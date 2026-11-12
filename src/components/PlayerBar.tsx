@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { usePlayer } from '@/store/player'
 import { useLibrary } from '@/store/library'
+import { useUi } from '@/store/ui'
 import { useAuth } from '@/store/auth'
 import { formatDuration, songCoverUrl } from '@/api/ncm'
 import { QualityMenu } from './QualityMenu'
@@ -21,8 +22,11 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
   const { likedIds, toggleLike, loadLikes } = useLibrary()
   const { user } = useAuth()
 
-  const [queueOpen, setQueueOpen] = useState(false)
-  const [lyricOpen, setLyricOpen] = useState(false)
+  // 抽屉状态提升到 ui store：App 层需要感知它以推挤主内容区
+  const queueOpen = useUi((st) => st.drawer === 'queue')
+  const lyricOpen = useUi((st) => st.drawer === 'lyric')
+  const toggleDrawer = useUi((st) => st.toggleDrawer)
+  const closeDrawer = useUi((st) => st.closeDrawer)
   const [likeBusy, setLikeBusy] = useState(false)
 
   // 首次进入时同步一次「喜欢」列表，保证红心状态准确
@@ -74,11 +78,11 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
               src={songCoverUrl(song, 120)}
               alt=""
               style={{ cursor: 'pointer' }}
-              onClick={() => setLyricOpen((o) => !o)}
+              onClick={() => toggleDrawer('lyric')}
               onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2' }}
             />
             <div className="pb-meta">
-              <div className="pb-title" title={song.name} style={{ cursor: 'pointer' }} onClick={() => setLyricOpen((o) => !o)}>{song.name}</div>
+              <div className="pb-title" title={song.name} style={{ cursor: 'pointer' }} onClick={() => toggleDrawer('lyric')}>{song.name}</div>
               <div className="pb-artist">
                 {(song.ar || song.artists || []).map((a) => a.name).join(' / ') || '未知歌手'}
               </div>
@@ -165,7 +169,7 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
         <button
           className={`pb-btn ${queueOpen ? 'active' : ''}`}
           title="播放队列"
-          onClick={() => setQueueOpen((o) => !o)}
+          onClick={() => toggleDrawer('queue')}
         >
           <IconQueue size={17} />
         </button>
@@ -184,38 +188,42 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
         </div>
       </div>
 
-      {/* 错误 / 音质提示 */}
+      {/* 错误 / 音质提示
+          修复：原实现用 left:16/right:16 撑满全宽并绝对定位在播放栏内，
+          会向上溢出遮住播放控件。现改为限宽、贴右、最多两行截断，
+          并整体上移，确保不覆盖任何可点击元素。 */}
       {(loadError || qualityNotice) && (
-        <div style={{
-          position: 'absolute', bottom: '100%', left: 16, right: 16, marginBottom: 6,
-          display: 'flex', gap: 8, flexDirection: 'column',
-        }}>
-          {loadError && <div className="error-box" style={{ margin: 0 }}>⚠ {loadError}</div>}
-          {qualityNotice && !loadError && <div className="notice-box">♪ {qualityNotice}</div>}
+        <div className="player-toast-wrap">
+          {loadError ? (
+            <div className="player-toast player-toast--error" role="alert" title={loadError}>
+              <span className="player-toast__label">播放失败</span>
+              <span className="player-toast__text">{loadError}</span>
+            </div>
+          ) : (
+            <div className="player-toast player-toast--notice" role="status" title={qualityNotice || ''}>
+              <span className="player-toast__label">音质</span>
+              <span className="player-toast__text">{qualityNotice}</span>
+            </div>
+          )}
         </div>
       )}
 
       {lyricOpen && (
-        <div style={{
-          position: 'fixed', right: 14, bottom: 'calc(var(--player-h) + 10px)',
-          width: 380, height: '52vh',
-          background: 'var(--bg-2)', border: '1px solid var(--border-light)',
-          borderRadius: 12, boxShadow: 'var(--shadow-2)',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 200,
-        }}>
-          <div className="row-between" style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 13.5, fontWeight: 550 }}>歌词</div>
-            <button className="pb-btn" onClick={() => setLyricOpen(false)} title="关闭"><IconClose size={15} /></button>
+        <aside className="side-drawer" aria-label="歌词">
+          <div className="side-drawer__head">
+            <div className="side-drawer__title">歌词</div>
+            <button className="pb-btn" onClick={closeDrawer} title="关闭歌词" aria-label="关闭歌词">
+              <IconClose size={15} />
+            </button>
           </div>
-          <div style={{ flex: 1, minHeight: 0, padding: '0 6px' }}>
-            <div style={{ height: '100%', overflow: 'hidden' }}>
-              <LyricPanel />
-            </div>
+          <div className="side-drawer__body" style={{ padding: '0 6px' }}>
+            <LyricPanel />
           </div>
-        </div>
+        </aside>
       )}
 
-      {queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
+
+      {queueOpen && <QueuePanel onClose={closeDrawer} />}
     </div>
   )
 }
