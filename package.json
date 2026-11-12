@@ -1,6 +1,6 @@
 {
   "name": "yunniang-music",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "云娘音乐 — 网易云音乐 Linux 桌面客户端",
   "main": "dist-electron/main.js",
   "author": {
@@ -22,7 +22,9 @@
     "dist:appimage": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm run build && ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --linux AppImage",
     "typecheck": "tsc --noEmit",
     "dev:shell": "wait-on http://localhost:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
-    "pack:deb": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --linux deb"
+    "pack:deb": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --linux deb",
+    "smoke": "electron scripts/visual-test.js",
+    "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "NeteaseCloudMusicApi": "4.32.0"
@@ -66,5 +68,8 @@
     "flac",
     "lossless"
   ],
-  "desktopName": "yunniang-music.desktop"
+  "desktopName": "yunniang-music.desktop",
+  "engines": {
+    "node": ">=22.12.0"
+  }
 }

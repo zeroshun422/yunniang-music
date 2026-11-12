@@ -3,8 +3,9 @@ const { app, BrowserWindow } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
-const ROOT = '/home/zeroshun/workspace/yunniang-music'
-const OUT = '/tmp/ui-shots'
+// ROOT 基于 __dirname 解析，使脚本在任何机器/CI 上都可用（不再硬编码绝对路径）
+const ROOT = path.resolve(__dirname, '..')
+const OUT = process.env.UI_SHOT_DIR || path.join(require('os').tmpdir(), 'ui-shots')
 fs.mkdirSync(OUT, { recursive: true })
 
 app.commandLine.appendSwitch('no-sandbox')
@@ -52,6 +53,7 @@ app.whenReady().then(async () => {
   await win.loadURL(indexUrl + '#/home')
   await wait(3500)
 
+  const failedRoutes = []
   for (const [name, route] of ROUTES) {
     try {
       await win.loadURL(indexUrl + '#' + route)
@@ -62,8 +64,16 @@ app.whenReady().then(async () => {
       const txt = await win.webContents.executeJavaScript(
         `(document.querySelector('.content-scroll')||document.body).innerText.slice(0,160)`
       )
-      console.log(`[SHOT] ${name.padEnd(11)} ${route.padEnd(16)} text="${String(txt).replace(/\s+/g,' ').slice(0,90)}"`)
+      const clean = String(txt).replace(/\s+/g, ' ').trim()
+      // 空白页面视为渲染失败（冒烟测试的核心判据）
+      if (!clean) {
+        failedRoutes.push(name)
+        console.log(`[FAIL] ${name.padEnd(11)} ${route.padEnd(16)} 页面内容为空`)
+        continue
+      }
+      console.log(`[SHOT] ${name.padEnd(11)} ${route.padEnd(16)} text="${clean.slice(0, 90)}"`)
     } catch (e) {
+      failedRoutes.push(name)
       console.log(`[FAIL] ${name} ${e.message}`)
     }
   }
@@ -74,5 +84,15 @@ app.whenReady().then(async () => {
   } else {
     console.log('\n=== 无控制台错误 ===')
   }
-  app.quit()
+
+  // 冒烟结论：任一页面空白/加载失败/控制台报错 => 非零退出，便于 CI 判定
+  const ok = failedRoutes.length === 0 && errors.length === 0
+  console.log('')
+  if (ok) {
+    console.log(`✅ SMOKE PASS — ${ROUTES.length} 个路由全部渲染成功`)
+  } else {
+    console.log(`❌ SMOKE FAIL — 失败路由: ${failedRoutes.join(', ') || '(无)'} | 控制台错误: ${errors.length}`)
+  }
+  console.log(`截图输出: ${OUT}`)
+  app.exit(ok ? 0 : 1)
 })

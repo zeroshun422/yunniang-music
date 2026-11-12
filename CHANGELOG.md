@@ -2,6 +2,42 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：修复 bug 升 PATCH，新增功能升 MINOR，重大变更升 MAJOR。
 
+## [1.1.1] - 2026-11-12
+
+本版聚焦**安全加固**与**质量基建**。
+
+### 安全
+- **凭据改用系统密钥环加密**：优先使用 Electron `safeStorage`（Linux 下走 libsecret/KWallet），
+  密钥由系统托管，本机其他程序无法推导。此前是用机器信息（userData 路径 + HOME + hostname）
+  派生密钥，理论上可被同机进程复现。
+- 保留对旧格式凭据的**向后兼容读取**，并在登录后自动迁移为新格式。
+  文件带 `YSF1`（safeStorage）/ `YLG1`（旧方案）文件头以区分。
+- **修正沙箱开关逻辑**：原代码条件写反（`!== '1'` 时反而默认禁用沙箱），现改为默认启用沙箱，
+  仅在 `chrome-sandbox` 缺少 SUID/root 属主或用户显式设置 `YUNNIANG_DISABLE_SANDBOX=1` 时才降级，
+  并在日志中说明原因。
+
+### 可测试性
+- 将音质解析逻辑（`inferRealLevel`、降级链、重试）从 `main.ts` 抽到 `electron/quality.ts`，
+  成为可独立测试的纯函数模块。
+- 新增 **28 个单元测试**（`tests/quality.test.ts`，使用 Node 内置 `node:test`，零新增依赖）：
+  - 真实音质反推：真无损/真母带/静默降级/大小写/异常输入等 15 例
+  - 档位→码率映射：2 例
+  - 降级链完整性：末位为 standard、链路严格递减 等 3 例
+  - 重试与降级：风控重试、重试耗尽换档、无版权不重试、异常捕获、空链 等 8 例
+- `main.ts` 的 `resolveSongUrl` 改为复用同一份 `resolveWithFallback`，消除重复实现。
+
+### CI
+- 新增 `npm run test` 单测步骤
+- 新增**最小冒烟测试**：用 mock 数据渲染全部 13 个路由，检查页面非空白且无控制台报错，
+  失败则 CI 不通过；截图作为 artifact 保留 7 天
+- `scripts/visual-test.js` / `test-quality-menu.js` 的 `ROOT` 改为基于 `__dirname`，
+  不再硬编码本机绝对路径，可在任意环境和 CI 运行
+
+### 文档
+- README 的 Node 要求更正为 **≥ 22.12.0**（Electron 45 的硬性要求），并在 `package.json` 声明 `engines`
+
+---
+
 ## [1.1.0] - 2026-11-12
 
 ### 重大更新：升级 Electron 33 → 45

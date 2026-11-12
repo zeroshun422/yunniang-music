@@ -1,9 +1,16 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, safeStorage } from 'electron'
 import path from 'node:path'
 import http from 'node:http'
 import net from 'node:net'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
+// 音质解析逻辑抽到独立模块，便于单测（见 tests/quality.test.ts）
+import {
+  QUALITY_CHAIN as Q_CHAIN,
+  levelToBr as qLevelToBr,
+  inferRealLevel as qInferRealLevel,
+  resolveWithFallback,
+} from './quality'
 
 // ---------------------------------------------------------------------------
 // 云娘音乐 — Electron 主进程
@@ -19,8 +26,36 @@ const PROXY_PORT_MAX = 47140
 const NCM_API_PORT_MIN = 47200
 const NCM_API_PORT_MAX = 47240
 
-// Chromium 在部分 Linux (特别是无沙箱的 AppImage / 旧内核) 需要放宽
-if (process.env.YUNNIANG_DISABLE_SANDBOX !== '1') {
+// Chromium 沙箱策略
+//
+// 默认保留沙箱（Electron 的安全基线）。仅在以下情况放宽：
+//   1. 用户显式设置 YUNNIANG_DISABLE_SANDBOX=1（如 AppImage 在受限内核上启动失败）
+//   2. 检测到 chrome-sandbox 权限不正确（打包后常见，否则会直接启动失败）
+//
+// 说明：早期版本此处条件写反了（`!== '1'` 反而默认禁用沙箱），已修正。
+function shouldDisableSandbox(): boolean {
+  if (process.env.YUNNIANG_DISABLE_SANDBOX === '1') return true
+  if (process.platform !== 'linux') return false
+
+  // 检查 chrome-sandbox 是否具备 SUID 且属主为 root —— 否则 Chromium 会拒绝启动
+  try {
+    const helper = path.join(path.dirname(process.execPath), 'chrome-sandbox')
+    if (!fs.existsSync(helper)) return false // 缺失时不主动禁用，交给 Chromium 判断
+    const st = fs.statSync(helper)
+    const ownerIsRoot = typeof st.uid === 'number' ? st.uid === 0 : true
+    const hasSuid = (st.mode & 0o4000) !== 0
+    if (!ownerIsRoot || !hasSuid) {
+      console.warn('[sandbox] chrome-sandbox 缺少 SUID/root 属主，为兼容而禁用沙箱')
+      return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
+const SANDBOX_DISABLED = shouldDisableSandbox()
+if (SANDBOX_DISABLED) {
   app.commandLine.appendSwitch('no-sandbox')
 }
 
@@ -31,7 +66,9 @@ if (process.platform === 'linux') {
   // Linux 下 WM_CLASS 由 app name 推导，需在 ready 之前固定
   app.commandLine.appendSwitch('class', 'yunniang-music')
 }
-app.commandLine.appendSwitch('disable-gpu-sandbox')
+if (SANDBOX_DISABLED) {
+  app.commandLine.appendSwitch('disable-gpu-sandbox')
+}
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 // 单实例锁
@@ -57,9 +94,21 @@ for (const d of [downloadDir, cacheDir]) {
 }
 
 // ---------------------------------------------------------------------------
-// Cookie 加密持久化（不落明文，密钥由机器信息派生）
+// Cookie 加密持久化
+//
+// 优先使用 Electron safeStorage（Linux 下走 libsecret / KWallet / kwallet，
+// 密钥由系统密钥环托管，本机其他程序无法推导）。
+// 若系统无可用密钥环（如无桌面环境的服务器），回退到「机器信息派生密钥」的
+// 旧方案，并通过文件头标记区分，保证老用户凭据仍可读取。
 // ---------------------------------------------------------------------------
-function deriveKey() {
+
+/** 新格式文件头（safeStorage 加密） */
+const COOKIE_MAGIC_SAFE = Buffer.from('YSF1', 'ascii') // "YSF1"
+/** 旧格式文件头（机器派生的 AES-256-GCM） */
+const COOKIE_MAGIC_LEGACY = Buffer.from('YLG1', 'ascii')
+
+/** 旧方案：由机器信息派生密钥（可被本机其他程序复现，仅作回退） */
+function deriveLegacyKey() {
   const seed = [
     'yunniang-music-v1',
     app.getPath('userData'),
@@ -69,15 +118,61 @@ function deriveKey() {
   return crypto.createHash('sha256').update(seed).digest()
 }
 
-function saveCookie(cookieStr) {
+/**
+ * 当前环境是否支持系统密钥环加密。
+ * Electron 45 起 isEncryptionAvailable 已废弃，改用异步版本。
+ */
+async function safeStorageReady(): Promise<boolean> {
   try {
-    const key = deriveKey()
-    const iv = crypto.randomBytes(12)
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
-    const enc = Buffer.concat([cipher.update(cookieStr, 'utf8'), cipher.final()])
-    const tag = cipher.getAuthTag()
-    const payload = Buffer.concat([iv, tag, enc]).toString('base64')
-    fs.writeFileSync(cookieFile, payload, { mode: 0o600 })
+    const anySS = safeStorage as any
+    if (typeof anySS.isAsyncEncryptionAvailable === 'function') {
+      return !!(await anySS.isAsyncEncryptionAvailable())
+    }
+    return safeStorage.isEncryptionAvailable()
+  } catch {
+    return false
+  }
+}
+
+/** 加密字符串（兼容 Electron 45 的异步 API 与旧版同步 API） */
+async function secureEncrypt(plain: string): Promise<Buffer> {
+  const anySS = safeStorage as any
+  if (typeof anySS.encryptStringAsync === 'function') {
+    const r = await anySS.encryptStringAsync(plain)
+    // 返回 {shouldReEncrypt, result} 或 Buffer，做兼容
+    const buf = r && r.result ? r.result : r
+    return Buffer.from(buf)
+  }
+  return Buffer.from(safeStorage.encryptString(plain))
+}
+
+/** 解密（兼容异步/同步两种返回） */
+async function secureDecrypt(payload: Buffer): Promise<string> {
+  const anySS = safeStorage as any
+  if (typeof anySS.decryptStringAsync === 'function') {
+    const r = await anySS.decryptStringAsync(payload)
+    return r && typeof r === 'object' && 'result' in r ? String(r.result) : String(r)
+  }
+  return safeStorage.decryptString(payload)
+}
+
+async function saveCookie(cookieStr: string): Promise<boolean> {
+  try {
+    let payload: Buffer
+
+    if (await safeStorageReady()) {
+      // 首选：系统密钥环
+      payload = Buffer.concat([COOKIE_MAGIC_SAFE, await secureEncrypt(cookieStr)])
+    } else {
+      // 回退：机器派生 AES-256-GCM
+      const iv = crypto.randomBytes(12)
+      const cipher = crypto.createCipheriv('aes-256-gcm', deriveLegacyKey(), iv)
+      const enc = Buffer.concat([cipher.update(cookieStr, 'utf8'), cipher.final()])
+      const tag = cipher.getAuthTag()
+      payload = Buffer.concat([COOKIE_MAGIC_LEGACY, iv, tag, enc])
+    }
+
+    fs.writeFileSync(cookieFile, payload.toString('base64'), { mode: 0o600 })
     return true
   } catch (e) {
     console.error('[cookie] save failed', e)
@@ -85,16 +180,41 @@ function saveCookie(cookieStr) {
   }
 }
 
-function loadCookie() {
+async function loadCookie(): Promise<string> {
   try {
     if (!fs.existsSync(cookieFile)) return ''
     const raw = Buffer.from(fs.readFileSync(cookieFile, 'utf8'), 'base64')
+    if (raw.length < 5) return ''
+
+    const magic = raw.subarray(0, 4)
+
+    // 新格式：safeStorage
+    if (magic.equals(COOKIE_MAGIC_SAFE)) {
+      const body = raw.subarray(4)
+      if (!(await safeStorageReady())) {
+        console.warn('[cookie] 凭据由系统密钥环加密，但当前环境不可用，无法解密')
+        return ''
+      }
+      return await secureDecrypt(body)
+    }
+
+    // 旧格式：机器派生密钥（向后兼容）
+    if (magic.equals(COOKIE_MAGIC_LEGACY)) {
+      const iv = raw.subarray(4, 16)
+      const tag = raw.subarray(16, 32)
+      const enc = raw.subarray(32)
+      const d = crypto.createDecipheriv('aes-256-gcm', deriveLegacyKey(), iv)
+      d.setAuthTag(tag)
+      return Buffer.concat([d.update(enc), d.final()]).toString('utf8')
+    }
+
+    // 无文件头的历史数据：按旧方案尝试（兼容更早版本）
     const iv = raw.subarray(0, 12)
     const tag = raw.subarray(12, 28)
     const enc = raw.subarray(28)
-    const decipher = crypto.createDecipheriv('aes-256-gcm', deriveKey(), iv)
-    decipher.setAuthTag(tag)
-    return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8')
+    const d = crypto.createDecipheriv('aes-256-gcm', deriveLegacyKey(), iv)
+    d.setAuthTag(tag)
+    return Buffer.concat([d.update(enc), d.final()]).toString('utf8')
   } catch (e) {
     console.error('[cookie] load failed', e)
     return ''
@@ -184,34 +304,9 @@ async function startEmbeddedApi() {
 // ---------------------------------------------------------------------------
 // 音频代理：解决防盗链 Referer、跨域、音质回退，并做本地缓存
 // ---------------------------------------------------------------------------
-const QUALITY_CHAIN = {
-  // 请求音质 -> 允许回退的顺序（高到低）
-  jymaster: ['jymaster', 'hires', 'lossless', 'exhigh', 'higher', 'standard'],
-  hires: ['hires', 'lossless', 'exhigh', 'higher', 'standard'],
-  lossless: ['lossless', 'exhigh', 'higher', 'standard'],
-  exhigh: ['exhigh', 'higher', 'standard'],
-  higher: ['higher', 'standard'],
-  standard: ['standard'],
-}
 
-const BR_TO_LEVEL = {
-  128000: 'standard',
-  192000: 'higher',
-  320000: 'exhigh',
-  999000: 'lossless',
-}
 
-function levelToBr(level) {
-  switch (level) {
-    case 'standard': return 128000
-    case 'higher': return 192000
-    case 'exhigh': return 320000
-    case 'lossless': return 999000
-    case 'hires': return 1900000
-    case 'jymaster': return 1999000
-    default: return 320000
-  }
-}
+const levelToBr = qLevelToBr
 
 async function ncmGet(apiPath, cookie, timeoutMs = 15000) {
   const url = apiBaseUrl + apiPath
@@ -228,35 +323,8 @@ async function ncmGet(apiPath, cookie, timeoutMs = 15000) {
   }
 }
 
-/**
- * 依据返回的码率与格式反推真实音质档位。
- * 网易云在账号无权限时会「静默降级」——照样返回 200，
- * 但 br 只有 128000/320000 且 type 是 MP3，此时不能标称无损。
- */
-function inferRealLevel(requested, br, type) {
-  const t = String(type || '').toLowerCase()
-  const isFlacLike = t.includes('flac') || t.includes('ape') || t.includes('wav')
-  const kbps = Math.round((Number(br) || 0) / 1000)
-
-  // 无损类档位必须以无损格式 + 高码率为准
-  if (requested === 'lossless' || requested === 'hires' || requested === 'jymaster') {
-    if (isFlacLike && kbps >= 700) return requested
-    if (isFlacLike && kbps >= 500) return 'lossless'
-    if (kbps >= 320) return 'exhigh'
-    if (kbps >= 192) return 'higher'
-    return 'standard'
-  }
-  if (requested === 'exhigh') {
-    if (isFlacLike && kbps >= 700) return 'lossless'
-    return kbps >= 300 ? 'exhigh' : kbps >= 180 ? 'higher' : 'standard'
-  }
-  if (requested === 'higher') {
-    if (kbps >= 300) return 'exhigh'
-    return kbps >= 180 ? 'higher' : 'standard'
-  }
-  if (isFlacLike && kbps >= 700) return 'lossless'
-  return 'standard'
-}
+const QUALITY_CHAIN = Q_CHAIN as unknown as Record<string, string[]>
+const inferRealLevel = qInferRealLevel
 
 /**
  * 获取歌曲播放地址。
@@ -265,47 +333,62 @@ function inferRealLevel(requested, br, type) {
  * 返回 { url, br, type, size, level, fee }
  */
 async function resolveSongUrl(songId, wantedLevel, cookie) {
-  const chain = QUALITY_CHAIN[wantedLevel] || QUALITY_CHAIN.exhigh
-  let lastErr = null
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+  const chain = (QUALITY_CHAIN[wantedLevel] || QUALITY_CHAIN.exhigh) as any[]
 
-  for (const level of chain) {
-    // 每个档位最多试 5 次，短随机退避绕开风控
-    for (let attempt = 0; attempt < 5; attempt++) {
-      if (attempt > 0) await sleep(160 + Math.random() * 240)
-
-      try {
-        const r = await ncmGet(
-          `/song/url/v1?id=${encodeURIComponent(songId)}&level=${level}&encodeType=flac`,
-          cookie
-        )
-        const item = r && r.data && r.data[0]
-        if (r.code === 200 && item && item.url) {
-          // 服务端可能悄悄降级：返回 128k MP3 却声称 lossless。
-          // 以实际 br/type 反推真实档位，避免 UI 虚标「无损」。
-          const realLevel = inferRealLevel(level, item.br, item.type)
-          return { url: item.url, br: item.br, type: item.type, size: item.size, level: realLevel, requestedLevel: level, fee: item.fee }
-        }
-        lastErr = (r && (r.message || r.msg)) || `v1 level=${level} 无链接`
-        // 非风控类错误（如无版权 -200/-447）无需重试，直接换档
-        if (r && r.code !== -460 && r.code !== -462) break
-      } catch (e) {
-        lastErr = e.message
+  // 单一档位的请求：v1 接口优先，失败后回退旧接口
+  const fetchLevel = async (level) => {
+    // 1) v1 接口
+    try {
+      const r = await ncmGet(
+        `/song/url/v1?id=${encodeURIComponent(songId)}&level=${level}&encodeType=flac`,
+        cookie
+      )
+      const item = r && r.data && r.data[0]
+      if (r.code === 200 && item && item.url) {
+        return { ok: true, url: item.url, br: item.br, type: item.type, size: item.size }
       }
+      // 风控类错误可重试，其余（无版权等）直接判死
+      const retryable = !!r && (r.code === -460 || r.code === -462)
+      if (!retryable) {
+        // 非风控错误：仍尝试旧接口兜底一次
+        return await viaLegacy(level)
+      }
+      return { ok: false, code: r?.code, retryable: true }
+    } catch (e) {
+      return { ok: false, retryable: true, code: -1 }
     }
+  }
 
-    // 旧接口兜底（encodeType 不参与，成功率更高但音质上限较低）
+  // 旧接口兜底（encodeType 不参与，成功率更高但音质上限较低）
+  const viaLegacy = async (level) => {
     try {
       const br = levelToBr(level)
       const r2 = await ncmGet(`/song/url?id=${encodeURIComponent(songId)}&br=${br}`, cookie)
       const item2 = r2 && r2.data && r2.data[0]
       if (r2.code === 200 && item2 && item2.url) {
-        const realLevel = inferRealLevel(level, item2.br, item2.type)
-        return { url: item2.url, br: item2.br, type: item2.type, size: item2.size, level: realLevel, requestedLevel: level, fee: item2.fee }
+        return { ok: true, url: item2.url, br: item2.br, type: item2.type, size: item2.size }
       }
-    } catch (e) { /* continue */ }
+    } catch (e) { /* ignore */ }
+    return { ok: false, retryable: false, code: -1 }
   }
-  return { url: null, error: lastErr || '无法获取播放地址' }
+
+  // 用共享的重试 + 降级链实现（见 electron/quality.ts，已有单测覆盖）
+  const res = await resolveWithFallback(chain, fetchLevel)
+
+  if (!res.found) {
+    return { url: null, error: res.lastError || '无法获取播放地址' }
+  }
+
+  // 服务端可能悄悄降级：以实际 br/type 反推真实档位，避免 UI 虚标「无损」
+  const realLevel = inferRealLevel(res.level!, res.br, res.type)
+  return {
+    url: res.url,
+    br: res.br,
+    type: res.type,
+    size: res.size,
+    level: realLevel,
+    requestedLevel: res.level,
+  }
 }
 
 function startAudioProxy() {
@@ -321,7 +404,7 @@ function startAudioProxy() {
       if (u.pathname === '/audio') {
         const id = u.searchParams.get('id')
         const level = u.searchParams.get('level') || 'exhigh'
-        const cookie = loadCookie()
+        const cookie = await loadCookie()
         if (!id) { res.writeHead(400); return res.end(JSON.stringify({ code: 400, msg: 'missing id' })) }
 
         const info = await resolveSongUrl(id, level, cookie)
@@ -371,7 +454,7 @@ function startAudioProxy() {
       if (u.pathname === '/info') {
         const id = u.searchParams.get('id')
         const level = u.searchParams.get('level') || 'lossless'
-        const info = await resolveSongUrl(id, level, loadCookie())
+        const info = await resolveSongUrl(id, level, await loadCookie())
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
         return res.end(JSON.stringify({
           code: info.url ? 200 : 404,
@@ -404,7 +487,7 @@ let proxyBase = ''
 // 下载（无损缓存到磁盘）
 // ---------------------------------------------------------------------------
 async function downloadSong({ id, name, artist, level }, onProgress) {
-  const info = await resolveSongUrl(id, level || 'lossless', loadCookie())
+  const info = await resolveSongUrl(id, level || 'lossless', await loadCookie())
   if (!info.url) throw new Error(info.error || '无法获取下载地址')
 
   const safe = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80)
@@ -460,7 +543,7 @@ function setupIPC() {
 
   // --- 网易云接口透传（带上登录 Cookie） ---
   ipcMain.handle('ncm:request', async (_e, { path: apiPath, method = 'GET', body }) => {
-    const cookie = loadCookie()
+    const cookie = await loadCookie()
     // 不注入 realIP：伪造的来源 IP 会触发网易云风控（code -460）
     const url = apiBaseUrl + apiPath
     try {
@@ -479,7 +562,7 @@ function setupIPC() {
       const setCookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : []
       if (setCookies.length) {
         const merged = mergeCookie(cookie, setCookies)
-        saveCookie(merged)
+        await saveCookie(merged)
       }
       return data
     } catch (e) {

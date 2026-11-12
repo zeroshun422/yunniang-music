@@ -3,7 +3,7 @@ const { app, BrowserWindow } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
-const ROOT = '/home/zeroshun/workspace/yunniang-music'
+const ROOT = path.resolve(__dirname, '..')
 app.commandLine.appendSwitch('no-sandbox')
 app.disableHardwareAcceleration()
 

@@ -250,7 +250,7 @@ yunniang-music/
 
 ### 环境要求
 
-- Node.js ≥ 18（实测 24.22.1）
+- Node.js **≥ 22.12.0**（Electron 45 要求；实测 24.22.1）
 - npm ≥ 9
 - Linux x86_64（Debian/Ubuntu 系）
 
@@ -271,6 +271,13 @@ npm run dev
 ```bash
 npm run build     # 构建渲染进程 + 主进程
 npm start         # 以本地已构建产物启动（等价于运行最终 app）
+```
+
+### 测试
+
+```bash
+npm run test      # 单元测试（音质解析 / 降级链 / 重试逻辑，28 个用例）
+npm run smoke     # 冒烟测试：mock 渲染 13 个路由并截图，检查空白与控制台错误
 ```
 
 ### 打包
