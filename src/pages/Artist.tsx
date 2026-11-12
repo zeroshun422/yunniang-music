@@ -151,7 +151,7 @@ export function ArtistPage() {
           style={{
             width: 168, height: 168, borderRadius: '50%', objectFit: 'cover',
             background: 'var(--bg-3)', flexShrink: 0,
-            boxShadow: '0 6px 24px rgba(0,0,0,0.45)',
+            boxShadow: 'var(--shadow-1)',
           }}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '0.25' }}
         />

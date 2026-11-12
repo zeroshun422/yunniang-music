@@ -19,6 +19,10 @@ import { ArtistPage } from './pages/Artist'
 import { SettingsPage } from './pages/Settings'
 import { DesktopLyric } from './pages/DesktopLyric'
 import './styles/global.css'
+import { useTheme } from './store/theme'
+
+// 在任何组件渲染前应用主题，避免首帧闪烁
+useTheme.getState().init()
 
 const root = ReactDOM.createRoot(document.getElementById('root')!)
 

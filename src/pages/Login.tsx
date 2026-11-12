@@ -123,8 +123,8 @@ export function LoginPage() {
                       onClick={startQr}
                       style={{
                         position: 'absolute', inset: 0, borderRadius: 11,
-                        background: 'rgba(0,0,0,0.78)', display: 'grid', placeItems: 'center',
-                        color: '#fff', fontSize: 13, cursor: 'pointer',
+                        background: 'var(--fixed-media-scrim)', display: 'grid', placeItems: 'center',
+                        color: 'var(--fixed-on-media)', fontSize: 13, cursor: 'pointer',
                       }}
                     >
                       <div style={{ textAlign: 'center' }}>
@@ -136,8 +136,8 @@ export function LoginPage() {
                   {qrState === 'scanned' && (
                     <div style={{
                       position: 'absolute', inset: 0, borderRadius: 11,
-                      background: 'rgba(0,0,0,0.8)', display: 'grid', placeItems: 'center',
-                      color: '#fff', fontSize: 13,
+                      background: 'var(--fixed-media-scrim)', display: 'grid', placeItems: 'center',
+                      color: 'var(--fixed-on-media)', fontSize: 13,
                     }}>
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: 20, marginBottom: 6 }}>✓</div>

@@ -2,6 +2,55 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：修复 bug 升 PATCH，新增功能升 MINOR，重大变更升 MAJOR。
 
+## [1.2.0] - 2026-11-13
+
+新增**浅色模式**。两套主题共用同一套 CSS 变量，无平行样式分支。
+
+### 新增
+- **浅色主题**（默认），深色通过 `[data-theme="dark"]` 覆盖
+- 侧边栏底部「浅色模式 / 深色模式」切换项（太阳/月亮图标）
+- 主题偏好持久化到 `localStorage`（键 `yun-theme`）
+- 首帧主题引导脚本（`<head>` 内联 + CSP `sha256` 白名单），避免深色用户看到浅色闪屏
+
+### 变量体系
+`src/styles/global.css` 中以 `:root` 定义浅色、`:root[data-theme="dark"]` 覆盖深色，两套同名变量：
+
+| 分组 | 变量 |
+|---|---|
+| 背景层级 | `--bg-0/1/2/3`、`--bg-hover`、`--bg-active` |
+| 文本层级 | `--text-0/1/2/3` |
+| 强调色 | `--accent`、`--accent-dim`、`--accent-soft`、`--on-accent` |
+| 边框/阴影 | `--border`、`--border-light`、`--shadow-1/2`、`--card-shadow` |
+| 语义色 | `--error-*`（4 个）、`--notice-*`（4 个） |
+| 组件级 | `--scrollbar-thumb*`、`--slider-thumb*`、`--accent-glow`、`--ghost-hover-border` |
+| 页面元素 | `--hero-scrim`、`--tag-mv`、`--cover-border` |
+| 固定配色 | `--fixed-on-media`、`--fixed-media-scrim`、`--brand-grad-to` |
+
+### 清理写死的深色值
+替换了 **28 处**硬编码颜色（CSS 18 处 + 组件 10 处），包括：
+- `Cloud/Like/Roam` 顶部横幅里写死的 `rgba(22,22,31,...)`
+- `SongRow` 的 MV 标签蓝色 `#6a9cf5`
+- 各页卡片投影 `rgba(0,0,0,...)`
+- 滚动条、滑块、错误/提醒盒、提示条配色
+
+### 刻意保留的固定配色（不随主题变化）
+- 桌面歌词的白字 + 黑投影（透明浮层窗口）
+- 二维码的固定白底（保证扫码识别率）
+- 图片/遮罩上的白字（`--fixed-on-media` 语义化保留）
+
+### 顺带修复
+- 侧边栏因新增切换项出现 14px 溢出导致底部用户区被顶出视口 → 收紧分组间距，现 `scrollH === clientH`
+- 浅色下歌曲/队列封面与背景融合难以辨识 → 增加 `--cover-border` 细描边
+- `.sidebar-item` 复用于 `<button>`，补齐按钮默认样式清除
+
+### 验证
+- 单元测试 **50 / 50 通过**
+- 类型检查 **0 错误**
+- 冒烟测试 **13 / 13 路由通过**（含 CSP 校验，无控制台错误）
+- 双主题截图核对：主界面、抽屉展开态均正常；抽屉在两种主题下 `noOverlap: true`
+
+---
+
 ## [1.1.3] - 2026-11-13
 
 UI/UX 优化第一批（P0 布局层级修复）。**仅改 UI 层，业务逻辑与状态行为不变。**

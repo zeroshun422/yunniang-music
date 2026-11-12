@@ -166,7 +166,7 @@ export function RadarPage() {
               objectFit: 'cover',
               background: 'var(--bg-3)',
               display: 'block',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.45)',
+              boxShadow: 'var(--shadow-1)',
             }}
           />
         </div>

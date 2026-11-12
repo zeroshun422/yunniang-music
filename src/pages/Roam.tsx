@@ -263,7 +263,7 @@ export function RoamPage() {
                 borderRadius: 16,
                 border: '1px solid var(--border)',
                 background:
-                  'radial-gradient(120% 140% at 0% 0%, rgba(236,65,65,0.16), rgba(22,22,31,0.9) 55%, var(--bg-1))',
+                  'radial-gradient(120% 140% at 0% 0%, var(--accent-soft), var(--hero-scrim) 55%, var(--bg-1))',
                 opacity: busy ? 0.55 : 1,
                 transition: 'opacity 0.18s',
               }}
@@ -278,7 +278,7 @@ export function RoamPage() {
                     borderRadius: 14,
                     objectFit: 'cover',
                     background: 'var(--bg-3)',
-                    boxShadow: '0 14px 38px rgba(0,0,0,0.5)',
+                    boxShadow: 'var(--shadow-1)',
                     flexShrink: 0,
                   }}
                 />
@@ -337,7 +337,7 @@ export function RoamPage() {
                   <button
                     className="btn ghost"
                     onClick={handleLike}
-                    style={liked ? { color: 'var(--accent)', borderColor: 'rgba(236,65,65,0.5)' } : undefined}
+                    style={liked ? { color: 'var(--accent)', borderColor: 'var(--accent)' } : undefined}
                   >
                     <IconHeart size={14} filled={liked} /> {liked ? '已喜欢' : '喜欢'}
                   </button>

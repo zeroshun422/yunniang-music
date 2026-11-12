@@ -269,7 +269,7 @@ export function RankPage() {
                     objectFit: 'cover',
                     background: 'var(--bg-3)',
                     flexShrink: 0,
-                    boxShadow: '0 3px 14px rgba(0,0,0,0.35)',
+                    boxShadow: 'var(--shadow-1)',
                   }}
                 />
                 <div className="grow" style={{ minWidth: 0 }}>

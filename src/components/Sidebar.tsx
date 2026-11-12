@@ -4,12 +4,16 @@ import { useAuth } from '@/store/auth'
 import {
   IconHome, IconSearch, IconCompass, IconRadar, IconHeartMode, IconRoam,
   IconPlaylist, IconRank, IconHeart, IconStar, IconCloud, IconUser, IconMusic, IconSettings,
+  IconSun, IconMoon,
 } from './Icons'
 import { coverUrl } from '@/api/ncm'
+import { useTheme } from '@/store/theme'
 
 export function Sidebar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const theme = useTheme((st) => st.theme)
+  const toggleTheme = useTheme((st) => st.toggle)
 
   const items = [
     { to: '/home', label: '发现音乐', icon: <IconHome /> },
@@ -57,6 +61,15 @@ export function Sidebar() {
       <div className="sidebar-group">
         <div className="sidebar-group-title">我的音乐</div>
         {library.map((i) => <NavItem key={i.to} {...i} />)}
+        <button
+          className="sidebar-item"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+          aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+        >
+          <span className="ico">{theme === 'dark' ? <IconSun /> : <IconMoon />}</span>
+          <span>{theme === 'dark' ? '浅色模式' : '深色模式'}</span>
+        </button>
       </div>
 
       <div className="sidebar-group">

@@ -179,7 +179,7 @@ export function LikePage() {
           borderRadius: 16,
           border: '1px solid var(--border)',
           background:
-            'radial-gradient(120% 140% at 0% 0%, rgba(236,65,65,0.15), rgba(22,22,31,0.92) 52%, var(--bg-1))',
+            'radial-gradient(120% 140% at 0% 0%, var(--accent-soft), var(--hero-scrim) 52%, var(--bg-1))',
           marginBottom: 22,
         }}
       >
@@ -193,7 +193,7 @@ export function LikePage() {
             flexShrink: 0,
             display: 'grid',
             placeItems: 'center',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+            boxShadow: 'var(--shadow-1)',
           }}
         >
           {cover ? (

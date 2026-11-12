@@ -63,7 +63,7 @@ export function SongRow({
         <div className="song-name">
           {song.name}
           {isVip && <span className="song-tag">VIP</span>}
-          {song.mv ? <span className="song-tag" style={{ borderColor: '#6a9cf5', color: '#6a9cf5' }}>MV</span> : null}
+          {song.mv ? <span className="song-tag" style={{ borderColor: 'var(--tag-mv)', color: 'var(--tag-mv)' }}>MV</span> : null}
         </div>
         {showAlbum && <div className="song-album">{album}</div>}
         </div>

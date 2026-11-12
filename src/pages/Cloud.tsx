@@ -230,7 +230,7 @@ export function CloudPage() {
           borderRadius: 16,
           border: '1px solid var(--border)',
           background:
-            'radial-gradient(120% 140% at 0% 0%, rgba(236,65,65,0.13), rgba(22,22,31,0.92) 55%, var(--bg-1))',
+            'radial-gradient(120% 140% at 0% 0%, var(--accent-soft), var(--hero-scrim) 55%, var(--bg-1))',
           marginBottom: 18,
         }}
       >
@@ -239,7 +239,7 @@ export function CloudPage() {
             width: 56,
             height: 56,
             borderRadius: 14,
-            background: 'rgba(236,65,65,0.14)',
+            background: 'var(--accent-soft)',
             color: 'var(--accent)',
             display: 'grid',
             placeItems: 'center',

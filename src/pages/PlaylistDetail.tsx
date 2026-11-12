@@ -182,7 +182,7 @@ export function PlaylistDetailPage() {
             objectFit: 'cover',
             background: 'var(--bg-3)',
             flexShrink: 0,
-            boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+            boxShadow: 'var(--shadow-1)',
           }}
         />
 

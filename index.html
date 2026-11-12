@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https: http:; media-src 'self' blob: http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:*" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https: http:; media-src 'self' blob: http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-soCOWF3xHv1pI/dClRGdB9abK4SPuHU+Ilj+0fLkYgM='; connect-src 'self' http://127.0.0.1:*" />
     <title>云娘音乐</title>
+    <script>(function(){try{var t=localStorage.getItem('yun-theme');if(t!=='light'&&t!=='dark'){t='light'}document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t}catch(e){document.documentElement.setAttribute('data-theme','light')}})();</script>
   </head>
   <body>
     <div id="root"></div>
