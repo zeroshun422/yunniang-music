@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/store/auth'
 import {
   IconHome, IconSearch, IconCompass, IconRadar, IconHeartMode, IconRoam,
-  IconPlaylist, IconRank, IconHeart, IconStar, IconCloud, IconUser, IconMusic,
+  IconPlaylist, IconRank, IconHeart, IconStar, IconCloud, IconUser, IconMusic, IconSettings,
 } from './Icons'
 import { coverUrl } from '@/api/ncm'
 
@@ -59,6 +59,10 @@ export function Sidebar() {
         {library.map((i) => <NavItem key={i.to} {...i} />)}
       </div>
 
+      <div className="sidebar-group">
+        <NavItem to="/settings" label="设置" icon={<IconSettings />} />
+      </div>
+
       <div style={{ marginTop: 'auto', padding: '10px 12px 4px' }}>
         {user && (
           <div
@@ -69,7 +73,7 @@ export function Sidebar() {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            title="设置 / 账号"
+            title="点击进入设置"
           >
             <img
               src={coverUrl(user.avatarUrl, 60)}
@@ -82,6 +86,9 @@ export function Sidebar() {
                 {user.vipType && user.vipType > 0 ? '黑胶 VIP' : '普通用户'}
               </div>
             </div>
+            <span style={{ color: 'var(--text-3)', display: 'grid', placeItems: 'center' }}>
+              <IconSettings size={15} />
+            </span>
           </div>
         )}
       </div>
