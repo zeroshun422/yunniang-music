@@ -1,6 +1,6 @@
 {
   "name": "yunniang-music",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "云娘音乐 — 网易云音乐 Linux 桌面客户端",
   "main": "dist-electron/main.js",
   "author": {
@@ -17,11 +17,12 @@
     "build:electron": "node scripts/build-electron.mjs",
     "build": "npm run build:renderer && npm run build:electron",
     "start": "electron .",
-    "dist": "npm run build && electron-builder --linux AppImage deb",
-    "dist:deb": "npm run build && electron-builder --linux deb",
-    "dist:appimage": "npm run build && electron-builder --linux AppImage",
+    "dist": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm run build && ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --linux AppImage deb",
+    "dist:deb": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm run build && ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --linux deb",
+    "dist:appimage": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm run build && ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --linux AppImage",
     "typecheck": "tsc --noEmit",
-    "dev:shell": "wait-on http://localhost:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron ."
+    "dev:shell": "wait-on http://localhost:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "pack:deb": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --linux deb"
   },
   "dependencies": {
     "NeteaseCloudMusicApi": "4.32.0"
@@ -31,8 +32,8 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.0",
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
+    "electron": "45.3.1",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.24.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -43,9 +44,10 @@
     "zustand": "^5.0.2"
   },
   "allowScripts": {
-    "electron@33.4.11": true,
     "esbuild@0.24.2": true,
-    "esbuild@0.25.12": true
+    "esbuild@0.25.12": true,
+    "electron@45.3.1": true,
+    "electron-winstaller@5.4.0": true
   },
   "homepage": "https://github.com/zeroshun422/yunniang-music#readme",
   "repository": {
@@ -63,5 +65,6 @@
     "music-player",
     "flac",
     "lossless"
-  ]
+  ],
+  "desktopName": "yunniang-music.desktop"
 }
