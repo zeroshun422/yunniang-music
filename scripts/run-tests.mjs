@@ -17,6 +17,7 @@ await build({
   entryPoints: [
     path.join(root, 'electron/quality.ts'),
     path.join(root, 'tests/quality.test.ts'),
+    path.join(root, 'tests/player.test.ts'),
   ],
   bundle: false,
   platform: 'node',
@@ -32,13 +33,16 @@ fs.writeFileSync(path.join(outdir, 'package.json'), JSON.stringify({ type: 'modu
 
 // 测试文件 import 的是 '../electron/quality.js'，
 // 编译后目录结构变为 dist-test/tests/*.js 与 dist-test/electron/*.js，相对路径仍然成立
-const testFile = path.join(outdir, 'tests', 'quality.test.js')
-if (!fs.existsSync(testFile)) {
-  console.error('编译产物缺失:', testFile)
+const testFiles = ['quality.test.js', 'player.test.js']
+  .map((f) => path.join(outdir, 'tests', f))
+  .filter((f) => fs.existsSync(f))
+
+if (!testFiles.length) {
+  console.error('未找到编译后的测试文件')
   process.exit(1)
 }
 
-const child = spawn(process.execPath, ['--test', testFile], {
+const child = spawn(process.execPath, ['--test', ...testFiles], {
   stdio: 'inherit',
   env: { ...process.env, NODE_OPTIONS: '' },
 })

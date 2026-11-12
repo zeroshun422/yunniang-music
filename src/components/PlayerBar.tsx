@@ -48,13 +48,20 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
   const [dragVal, setDragVal] = useState(0)
 
   const song = queue[currentIndex]
-  const progress = duration > 0 ? ((dragging ? dragVal : currentTime) / duration) * 100 : 0
+  // 拖动期间用 dragVal 渲染，避免 timeupdate 把进度条拉回去
+  const displayTime = dragging ? dragVal : currentTime
+  const progress = duration > 0 ? (displayTime / duration) * 100 : 0
 
   const onSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Number(e.target.value)
     setDragVal((v / 100) * duration)
+    // 拖动过程中只更新预览值，不立即 seek：
+    // 否则每个 change 事件都会触发浏览器 seek，音频会卡顿、进度条也会跳。
+    // 松手时（onMouseUp）才真正跳转。
     if (!dragging) seek((v / 100) * duration)
   }
+
+
 
   return (
     <div className="player-bar">
@@ -128,7 +135,7 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
         </div>
 
         <div className="pb-progress">
-          <span className="pb-time">{formatDuration(dragging ? dragVal * 1000 : currentTime * 1000)}</span>
+          <span className="pb-time">{formatDuration(displayTime * 1000)}</span>
           <input
             className="slider"
             type="range"

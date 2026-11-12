@@ -59,6 +59,29 @@ let audioEl: HTMLAudioElement | null = null
 // 播放请求序号：用于丢弃过期请求的结果，避免快速切歌时旧探测结果覆盖新歌曲
 let playSeq = 0
 
+// 播放历史（存队列索引）：供随机模式下的「上一首」使用
+const playHistory: number[] = []
+const MAX_HISTORY = 100
+
+function pushPlayHistory(index: number) {
+  if (index < 0) return
+  // 避免连续重复记录同一索引
+  if (playHistory[playHistory.length - 1] === index) return
+  playHistory.push(index)
+  if (playHistory.length > MAX_HISTORY) playHistory.shift()
+}
+
+function popPlayHistory(): number | null {
+  // 弹出「当前」这条，返回上一条
+  playHistory.pop()
+  const prev = playHistory[playHistory.length - 1]
+  return typeof prev === 'number' ? prev : null
+}
+
+function resetPlayHistory() {
+  playHistory.length = 0
+}
+
 function detectQuality(): QualityLevel {
   const saved = localStorage.getItem('yun-quality')
   const valid: QualityLevel[] = ['standard', 'higher', 'exhigh', 'lossless', 'hires', 'jyeffect', 'sky', 'jymaster']
@@ -193,13 +216,24 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   prev: async () => {
-    const { queue, currentIndex } = get()
+    const { queue, currentIndex, shuffle } = get()
     if (!queue.length) return
     // 播放超过 3 秒时先重头播
     if (audioEl && audioEl.currentTime > 3) {
       audioEl.currentTime = 0
       return
     }
+
+    // 随机模式下「上一首」应回到上一条播放历史，而非索引 -1 的随机曲目
+    if (shuffle) {
+      const prevHistoryIdx = popPlayHistory()
+      if (prevHistoryIdx !== null && queue[prevHistoryIdx]) {
+        set({ currentIndex: prevHistoryIdx })
+        await loadAndPlay(queue[prevHistoryIdx], set, get)
+        return
+      }
+    }
+
     let prevIdx = currentIndex - 1
     if (prevIdx < 0) prevIdx = queue.length - 1
     set({ currentIndex: prevIdx })
@@ -207,7 +241,12 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   seek: (t) => {
-    if (audioEl) { audioEl.currentTime = t; set({ currentTime: t }) }
+    if (!audioEl) return
+    const dur = Number.isFinite(audioEl.duration) ? audioEl.duration : 0
+    // 夹紧到合法区间：负数或超出时长的值会被浏览器接受但不生效，导致 UI 与实际的进度条错位
+    const clamped = Math.max(0, dur > 0 ? Math.min(t, dur) : t)
+    audioEl.currentTime = clamped
+    set({ currentTime: clamped })
   },
 
   setVolume: (v) => {
@@ -256,16 +295,53 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   removeFromQueue: (index) => {
     const { queue, currentIndex } = get()
+    if (index < 0 || index >= queue.length) return
+
     const q = queue.filter((_, i) => i !== index)
-    let ci = currentIndex
-    if (index < currentIndex) ci--
-    else if (index === currentIndex) ci = Math.min(currentIndex, q.length - 1)
-    set({ queue: q, currentIndex: ci })
+
+    // 移除的不是当前曲目：只需修正索引
+    if (index !== currentIndex) {
+      set({ queue: q, currentIndex: index < currentIndex ? currentIndex - 1 : currentIndex })
+      return
+    }
+
+    // 移除的正是正在播放的曲目：索引修正后必须真正切换音源，
+    // 否则 UI 显示的是下一首，实际仍在播放已被移除的那首。
+    if (!q.length) {
+      get().clearQueue()
+      return
+    }
+
+    const nextIdx = Math.min(currentIndex, q.length - 1)
+    set({ queue: q, currentIndex: nextIdx })
+    void loadAndPlay(q[nextIdx], set, get)
   },
 
   clearQueue: () => {
-    if (audioEl) { audioEl.pause(); audioEl.src = '' }
-    set({ queue: [], currentIndex: -1, playing: false, lyrics: [], currentLine: -1 })
+    if (audioEl) {
+      // 作废进行中的加载请求，避免它稍后把音源又设回来
+      ++playSeq
+      resetPlayHistory()
+      audioEl.pause()
+      audioEl.removeAttribute('src')
+      // 必须调用 load()，否则浏览器不会释放已缓冲的媒体资源
+      audioEl.load()
+    }
+    set({
+      queue: [],
+      currentIndex: -1,
+      playing: false,
+      currentTime: 0,
+      duration: 0,
+      lyrics: [],
+      hasTrans: false,
+      currentLine: -1,
+      loading: false,
+      loadError: null,
+      actualQuality: '',
+      actualBr: 0,
+      qualityNotice: null,
+    })
   },
 
   moveInQueue: (from, to) => {
@@ -319,6 +395,8 @@ async function loadAndPlay(
 ) {
   const { quality } = get()
   const mySeq = ++playSeq
+  // 记录到播放历史（随机模式下「上一首」依赖它）
+  pushPlayHistory(get().currentIndex)
   set({ loading: true, loadError: null, currentTime: startAt, actualBr: 0, actualQuality: '', qualityNotice: null })
 
   try {
