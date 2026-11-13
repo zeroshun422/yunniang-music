@@ -1,6 +1,16 @@
 import { create } from 'zustand'
 import type { Song, QualityLevel, LyricLine } from '@/types'
 import * as ncm from '@/api/ncm'
+import {
+  removeQueueItem,
+  moveQueueItem,
+  clampSeekTime,
+  createPlayHistory,
+  computeNextIndex,
+  computePrevIndex,
+  shuffleInPlace,
+  buildQualityNotice,
+} from './queue-logic'
 
 type RepeatMode = 'off' | 'all' | 'one'
 
@@ -60,27 +70,7 @@ let audioEl: HTMLAudioElement | null = null
 let playSeq = 0
 
 // 播放历史（存队列索引）：供随机模式下的「上一首」使用
-const playHistory: number[] = []
-const MAX_HISTORY = 100
-
-function pushPlayHistory(index: number) {
-  if (index < 0) return
-  // 避免连续重复记录同一索引
-  if (playHistory[playHistory.length - 1] === index) return
-  playHistory.push(index)
-  if (playHistory.length > MAX_HISTORY) playHistory.shift()
-}
-
-function popPlayHistory(): number | null {
-  // 弹出「当前」这条，返回上一条
-  playHistory.pop()
-  const prev = playHistory[playHistory.length - 1]
-  return typeof prev === 'number' ? prev : null
-}
-
-function resetPlayHistory() {
-  playHistory.length = 0
-}
+const playHistory = createPlayHistory(100)
 
 function detectQuality(): QualityLevel {
   const saved = localStorage.getItem('yun-quality')
@@ -199,17 +189,12 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   next: async (manual = false) => {
     const { queue, currentIndex, repeat, shuffle } = get()
-    if (!queue.length) return
-    let nextIdx: number
-    if (shuffle) {
-      nextIdx = Math.floor(Math.random() * queue.length)
-      if (queue.length > 1 && nextIdx === currentIndex) nextIdx = (nextIdx + 1) % queue.length
-    } else {
-      nextIdx = currentIndex + 1
-      if (nextIdx >= queue.length) {
-        if (repeat === 'all' || manual) nextIdx = 0
-        else { set({ playing: false }); return }
-      }
+    const nextIdx = computeNextIndex({
+      currentIndex, length: queue.length, repeat, shuffle, manual,
+    })
+    if (nextIdx === null) {
+      set({ playing: false })
+      return
     }
     set({ currentIndex: nextIdx })
     await loadAndPlay(queue[nextIdx], set, get)
@@ -218,15 +203,14 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   prev: async () => {
     const { queue, currentIndex, shuffle } = get()
     if (!queue.length) return
-    // 播放超过 3 秒时先重头播
     if (audioEl && audioEl.currentTime > 3) {
       audioEl.currentTime = 0
       return
     }
 
-    // 随机模式下「上一首」应回到上一条播放历史，而非索引 -1 的随机曲目
+    // 随机模式：回到上一条实际播放记录
     if (shuffle) {
-      const prevHistoryIdx = popPlayHistory()
+      const prevHistoryIdx = playHistory.pop()
       if (prevHistoryIdx !== null && queue[prevHistoryIdx]) {
         set({ currentIndex: prevHistoryIdx })
         await loadAndPlay(queue[prevHistoryIdx], set, get)
@@ -234,8 +218,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       }
     }
 
-    let prevIdx = currentIndex - 1
-    if (prevIdx < 0) prevIdx = queue.length - 1
+    const prevIdx = computePrevIndex(currentIndex, queue.length)
+    if (prevIdx < 0) return
     set({ currentIndex: prevIdx })
     await loadAndPlay(queue[prevIdx], set, get)
   },
@@ -243,8 +227,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   seek: (t) => {
     if (!audioEl) return
     const dur = Number.isFinite(audioEl.duration) ? audioEl.duration : 0
-    // 夹紧到合法区间：负数或超出时长的值会被浏览器接受但不生效，导致 UI 与实际的进度条错位
-    const clamped = Math.max(0, dur > 0 ? Math.min(t, dur) : t)
+    const clamped = clampSeekTime(t, dur)
     audioEl.currentTime = clamped
     set({ currentTime: clamped })
   },
@@ -295,33 +278,31 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   removeFromQueue: (index) => {
     const { queue, currentIndex } = get()
-    if (index < 0 || index >= queue.length) return
+    const result = removeQueueItem({ queue, currentIndex }, index)
 
-    const q = queue.filter((_, i) => i !== index)
+    // 非法索引时状态不变
+    if (result.queue === queue) return
 
-    // 移除的不是当前曲目：只需修正索引
-    if (index !== currentIndex) {
-      set({ queue: q, currentIndex: index < currentIndex ? currentIndex - 1 : currentIndex })
+    if (!result.removedCurrent) {
+      set({ queue: result.queue, currentIndex: result.currentIndex })
       return
     }
 
-    // 移除的正是正在播放的曲目：索引修正后必须真正切换音源，
-    // 否则 UI 显示的是下一首，实际仍在播放已被移除的那首。
-    if (!q.length) {
+    // 删的正是当前播放项：必须真正切换音源
+    if (!result.queue.length) {
       get().clearQueue()
       return
     }
 
-    const nextIdx = Math.min(currentIndex, q.length - 1)
-    set({ queue: q, currentIndex: nextIdx })
-    void loadAndPlay(q[nextIdx], set, get)
+    set({ queue: result.queue, currentIndex: result.currentIndex })
+    void loadAndPlay(result.queue[result.currentIndex], set, get)
   },
 
   clearQueue: () => {
     if (audioEl) {
       // 作废进行中的加载请求，避免它稍后把音源又设回来
       ++playSeq
-      resetPlayHistory()
+      playHistory.reset()
       audioEl.pause()
       audioEl.removeAttribute('src')
       // 必须调用 load()，否则浏览器不会释放已缓冲的媒体资源
@@ -346,15 +327,9 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   moveInQueue: (from, to) => {
     const { queue, currentIndex } = get()
-    if (from === to) return
-    const q = [...queue]
-    const [item] = q.splice(from, 1)
-    q.splice(to, 0, item)
-    let ci = currentIndex
-    if (from === currentIndex) ci = to
-    else if (from < currentIndex && to >= currentIndex) ci--
-    else if (from > currentIndex && to <= currentIndex) ci++
-    set({ queue: q, currentIndex: ci })
+    const result = moveQueueItem({ queue, currentIndex }, from, to)
+    if (result.queue === queue) return
+    set({ queue: result.queue, currentIndex: result.currentIndex })
   },
 
   toggleDesktopLyric: async () => {
@@ -369,13 +344,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 }))
 
-function shuffleArray<T>(arr: T[]): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  return arr
-}
+const shuffleArray = shuffleInPlace
 
 
 // 代理地址缓存：避免每次切歌都走一次 IPC（也是切歌竞态的诱因之一）
@@ -396,7 +365,7 @@ async function loadAndPlay(
   const { quality } = get()
   const mySeq = ++playSeq
   // 记录到播放历史（随机模式下「上一首」依赖它）
-  pushPlayHistory(get().currentIndex)
+  playHistory.push(get().currentIndex)
   set({ loading: true, loadError: null, currentTime: startAt, actualBr: 0, actualQuality: '', qualityNotice: null })
 
   try {
@@ -482,13 +451,4 @@ async function loadAndPlay(
   }
 }
 
-function ncm_qualityNotice(requested: QualityLevel, actual: string, br: number): string | null {
-  if (!actual || requested === actual) return null
-  const LABELS: Record<string, string> = {
-    standard: '标准', higher: '较高', exhigh: '极高', lossless: '无损',
-    hires: 'Hi-Res', jyeffect: '高清环绕', sky: '沉浸环绕', jymaster: '超清母带',
-  }
-  return `「${LABELS[requested] || requested}」不可用，已自动降级为「${LABELS[actual] || actual}」${
-    br ? `（${Math.round(br / 1000)}kbps）` : ''
-  }`
-}
+const ncm_qualityNotice = buildQualityNotice

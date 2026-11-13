@@ -1,6 +1,7 @@
 import React from 'react'
 import type { Song } from '@/types'
 import { formatDuration, songCoverUrl } from '@/api/ncm'
+import { VirtualList } from './VirtualList'
 import { IconPlay, IconHeart, IconPlus } from './Icons'
 
 export interface SongRowProps {
@@ -108,34 +109,63 @@ interface SongListProps {
   emptyText?: string
 }
 
+/**
+ * 超过该阈值启用虚拟滚动。
+ * 小列表保持普通渲染，避免无谓的多一层 DOM 与滚动容器。
+ */
+const VIRTUAL_THRESHOLD = 200
+
+/** 单行高度，需与 CSS .song-row 的 min-height 保持一致 */
+const ROW_HEIGHT = 52
+
 export function SongList({
   songs, currentId, likedIds, onPlay, onLike, onAddQueue, onContextMenu, showAlbum = true, emptyText = '暂无歌曲',
 }: SongListProps) {
   if (!songs.length) {
     return <div className="empty"><div className="empty-icon">♪</div>{emptyText}</div>
   }
+
+  const head = (
+    <div className="table-head">
+      <div>#</div>
+      <div>标题</div>
+      <div>歌手</div>
+      <div>时长</div>
+      <div />
+    </div>
+  )
+
+  const renderRow = (s: Song, i: number) => (
+    <SongRow
+      song={s}
+      index={i}
+      isCurrent={s.id === currentId}
+      liked={likedIds?.has(s.id)}
+      showAlbum={showAlbum}
+      onPlay={() => onPlay(s, i)}
+      onLike={onLike}
+      onAddQueue={onAddQueue}
+      onContextMenu={onContextMenu}
+    />
+  )
+
+  // 大列表：虚拟滚动，只渲染可视区域
+  if (songs.length > VIRTUAL_THRESHOLD) {
+    return (
+      <div>
+        {head}
+        <div style={{ height: 'calc(100vh - 320px)', minHeight: 320 }}>
+          <VirtualList items={songs} itemHeight={ROW_HEIGHT} renderItem={renderRow} />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
-      <div className="table-head">
-        <div>#</div>
-        <div>标题</div>
-        <div>歌手</div>
-        <div>时长</div>
-        <div />
-      </div>
+      {head}
       {songs.map((s, i) => (
-        <SongRow
-          key={`${s.id}-${i}`}
-          song={s}
-          index={i}
-          isCurrent={s.id === currentId}
-          liked={likedIds?.has(s.id)}
-          showAlbum={showAlbum}
-          onPlay={() => onPlay(s, i)}
-          onLike={onLike}
-          onAddQueue={onAddQueue}
-          onContextMenu={onContextMenu}
-        />
+        <React.Fragment key={`${s.id}-${i}`}>{renderRow(s, i)}</React.Fragment>
       ))}
     </div>
   )

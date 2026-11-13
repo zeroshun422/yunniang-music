@@ -101,8 +101,6 @@ async function mockNcm(path) {
         result: songs.map((s) => ({ id: s.id, name: s.name, picUrl: s.al.picUrl, song: s })),
       }
 
-    case '/playlist/detail':
-      return { code: 200, playlist: { ...playlist(Number(q.get('id')) || 101, '私人雷达 · 每日推荐'), tracks: songs } }
     case '/playlist/track/all':
       return { code: 200, songs }
     case '/playlist/catlist':
@@ -136,20 +134,65 @@ async function mockNcm(path) {
       return { code: 200 }
 
     case '/likelist':
-      return { code: 200, ids: songs.map((s) => s.id) }
-    case '/song/detail':
-      return { code: 200, songs }
-    case '/like':
-      return { code: 200 }
+      // 返回 1221 首，用于验证大列表虚拟滚动
+      return { code: 200, ids: Array.from({ length: 1221 }, (_, i) => 100000 + i) }
 
     case '/user/playlist':
+      // 首个为「我喜欢的音乐」特殊歌单（供 likePlaylistWithTime 使用），
+      // 其后为普通歌单，保证收藏页等也有数据
       return {
         code: 200,
         playlist: [
+          {
+            id: 8034822070,
+            name: '测试用户喜欢的音乐',
+            specialType: 5,
+            trackCount: 1221,
+            coverImgUrl: IMG('likepl'),
+            creator: { nickname: '测试用户', userId: profile.userId },
+          },
           ...playlists,
           { ...playlist(999, '我创建的歌单'), creator: { nickname: '测试用户', userId: profile.userId } },
         ],
       }
+
+    case '/playlist/detail':
+      if (q.get('id') === '8034822070') {
+        return {
+          code: 200,
+          playlist: {
+            id: 8034822070,
+            name: '测试用户喜欢的音乐',
+            specialType: 5,
+            trackCount: 1221,
+            coverImgUrl: IMG('likepl'),
+            // 1221 条 trackIds，带 at 时间戳（用于时间排序）
+            trackIds: Array.from({ length: 1221 }, (_, i) => ({
+              id: 100000 + i,
+              at: 1794000000000 - i * 60000,
+            })),
+            tracks: [],
+          },
+        }
+      }
+      return { code: 200, playlist: { ...playlist(Number(q.get('id')) || 101, '测试歌单'), tracks: songs } }
+    case '/song/detail': {
+      const ids = (q.get('ids') || '').split(',').filter(Boolean).map(Number)
+      const big = ids.filter((id) => id >= 100000).map((id) => ({
+        id,
+        name: `测试歌曲 #${id - 100000 + 1}`,
+        ar: [{ id: 1, name: '测试歌手' }],
+        al: { id: 1, name: '测试专辑', picUrl: IMG('big' + id) },
+        dt: 200000,
+        fee: 0,
+      }))
+      // 小 id 命中预设歌曲；其余按大列表生成
+      const known = songs.filter((s) => ids.includes(s.id))
+      return { code: 200, songs: [...known, ...big] }
+    }
+    case '/like':
+      return { code: 200 }
+
     case '/playlist/subscribe':
       return { code: 200 }
 
