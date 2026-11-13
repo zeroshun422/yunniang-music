@@ -226,6 +226,60 @@ a { color: inherit; text-decoration: none; }
   -webkit-app-region: no-drag;
 }
 
+.titl/* =========================================================
+   主题切换过渡
+   ---------------------------------------------------------
+   成因：CSS 变量本身不可过渡。改变变量定义时，浏览器会在同一帧
+   把所有引用处替换成新值，不产生插值 —— 视觉上就是"瞬间闪变"。
+
+   方案：不试图过渡变量，而是过渡**最终计算出的颜色属性**。
+   在 <html> 上挂一个临时属性 [data-theme-animating]，仅在该属性
+   存在期间启用全局颜色过渡；切换完成后移除，避免长期存在的
+   通配 transition 影响 hover 等交互手感与性能。
+   ========================================================= */
+
+:root {
+  --theme-transition-duration: 800ms;
+  --theme-transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 仅在切换瞬间启用：颜色类属性做渐变 */
+html[data-theme-animating],
+html[data-theme-animating] body,
+html[data-theme-animating] * ,
+html[data-theme-animating] *::before,
+html[data-theme-animating] *::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow !important;
+  /* 用字面量而非 var()：通配选择器 + !important + var() 在部分 Chromium
+     版本上会把 duration 解析成 0s，导致过渡失效 */
+  /* 必须用字面量：实测「通配选择器 + !important + var()」在 Chromium 下
+     会把 duration 解析成 0s（var 在该作用域取不到值），导致过渡完全失效。
+     下方的 --theme-transition-duration 仅作文档与 JS 对齐之用。 */
+  transition-duration: 800ms !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition-delay: 0s !important;
+}
+
+/* 滚动条伪元素不参与过渡（Chromium 对其颜色过渡支持不稳定，会闪烁） */
+html[data-theme-animating] ::-webkit-scrollbar,
+html[data-theme-animating] ::-webkit-scrollbar-thumb,
+html[data-theme-animating] ::-webkit-scrollbar-track {
+  transition: none !important;
+}
+
+/* 尊重「减少动态效果」偏好：用户开启后立即切换，不做渐变 */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-animating],
+  html[data-theme-animating] body,
+  html[data-theme-animating] *,
+  html[data-theme-animating] *::before,
+  html[data-theme-animating] *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+ebar-nav { display: flex; gap: 4px; }
+
 .titlebar-nav { display: flex; gap: 4px; }
 
 .nav-btn {
