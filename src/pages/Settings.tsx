@@ -179,6 +179,12 @@ export function SettingsPage() {
             </span>
           </div>
           <div className="row-between" style={{ padding: '4px 0', fontSize: 12.5 }}>
+            <span className="muted">下载通道</span>
+            <span style={{ color: updateInfo?.usingMirror ? 'var(--accent)' : 'var(--text-1)' }}>
+              {updateInfo?.usingMirror ? '加速镜像' : '直连 GitHub'}
+            </span>
+          </div>
+          <div className="row-between" style={{ padding: '4px 0', fontSize: 12.5 }}>
             <span className="muted">状态</span>
             <span
               style={{
@@ -206,19 +212,25 @@ export function SettingsPage() {
               {updateStatus.state === 'checking' ? '检查中…' : '检查更新'}
             </button>
 
-            {updateStatus.state === 'available' && updateInfo?.format === 'appimage' && (
+            {updateStatus.state === 'available' && updateInfo?.format !== 'unknown' && (
               <button className="btn sm primary" onClick={() => downloadUpdate()}>
                 下载更新
               </button>
             )}
 
-            {updateStatus.state === 'downloaded' && (
+            {updateStatus.state === 'downloaded' && updateInfo?.format === 'appimage' && (
               <button className="btn sm primary" onClick={() => installUpdate()}>
                 重启并安装
               </button>
             )}
 
-            {(updateStatus.state === 'available' && updateInfo?.format === 'deb') && (
+            {updateStatus.state === 'downloaded' && updateInfo?.format === 'deb' && (
+              <button className="btn sm primary" onClick={() => installUpdate()}>
+                立即安装（需授权）
+              </button>
+            )}
+
+            {updateStatus.state !== 'downloading' && (
               <button className="btn sm ghost" onClick={() => openReleasePage()}>
                 前往下载页
               </button>
@@ -227,10 +239,11 @@ export function SettingsPage() {
 
           <div className="small muted mt-12" style={{ lineHeight: 1.75 }}>
             {updateInfo?.format === 'appimage'
-              ? 'AppImage 版本支持应用内自动更新：检测到新版本后可下载并在重启时生效。'
+              ? 'AppImage：可应用内下载并在重启时自动生效。'
               : updateInfo?.format === 'deb'
-              ? 'deb 版本需要 sudo 安装，因此检测到新版本后会引导你前往下载页手动更新。'
+              ? 'deb：可应用内下载，安装时会弹出系统授权窗口。'
               : '当前安装形态无法应用内更新，请前往下载页获取新版本。'}
+            {updateInfo?.usingMirror && ' 下载走加速镜像，可显著提升国内网络下的速度；若下载失败，可点「前往下载页」手动获取。'}
           </div>
         </div>
       </section>

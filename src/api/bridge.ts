@@ -41,6 +41,9 @@ declare global {
         format: 'appimage' | 'deb' | 'unknown'
         packaged: boolean
         feedConfigured: boolean
+        usingMirror?: boolean
+        feedUrl?: string
+        mirror?: string
       }>
       getUpdateStatus(): Promise<UpdateStatus>
       checkUpdate(): Promise<UpdateStatus>

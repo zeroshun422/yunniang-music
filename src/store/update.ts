@@ -3,7 +3,14 @@ import type { UpdateStatus } from '@/api/bridge'
 
 interface UpdateState {
   status: UpdateStatus
-  info: { currentVersion: string; format: string; packaged: boolean } | null
+  info: {
+    currentVersion: string
+    format: string
+    packaged: boolean
+    usingMirror?: boolean
+    feedUrl?: string
+    mirror?: string
+  } | null
   /** 用户是否手动触发过检查（用于区分"启动自动检查"与"手动检查"） */
   manual: boolean
   init: () => Promise<void>
@@ -73,7 +80,7 @@ export function describeUpdate(s: UpdateStatus): string {
     case 'downloaded':
       return `v${s.version} 已下载，可重启安装`
     case 'error':
-      return `检查失败：${s.message}`
+      return s.message
     default:
       return ''
   }

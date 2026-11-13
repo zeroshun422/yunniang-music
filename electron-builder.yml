@@ -2,7 +2,10 @@ appId: com.yunniang.music
 productName: 云娘音乐
 copyright: Copyright © 2026 yunniang
 
-# 自动更新源：electron-updater 会读取打包时写入的 app-update.yml
+# 打包时写入 app-update.yml 的配置（同时决定 latest-linux.yml 的生成与上传目标）。
+# 注意：程序运行时 electron/updater.ts 会调用 autoUpdater.setFeedURL() 覆盖这里，
+# 把更新源切到 v4.gh-proxy.org 加速镜像（generic provider）。这里保留 github
+# provider 作为元数据生成依据与直连回退配置，勿随意改成 generic。
 publish:
   provider: github
   owner: zeroshun422
@@ -62,5 +65,9 @@ deb:
     - libsecret-1-0
   afterInstall: build/after-install.sh
 
+# 关键：文件名必须是纯 ASCII，且与 latest-linux.yml 里的 url 完全一致。
+# 用 ${productName} 会得到中文「云娘音乐」，builder 为兼容 GitHub 会改写成
+# YunniangMusic-... 作为附件名，但 yml 里记录的仍是 ${name} 形式的
+# yunniang-music-...，两者不一致会让 electron-updater 下载 404。
 appImage:
-  artifactName: ${productName}-${version}-${arch}.AppImage
+  artifactName: ${name}-${version}-${arch}.AppImage

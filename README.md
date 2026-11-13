@@ -95,8 +95,8 @@
 ### 方式一：AppImage（免安装，推荐）
 
 ```bash
-chmod +x 云娘音乐-1.0.0-x86_64.AppImage
-./云娘音乐-1.0.0-x86_64.AppImage
+chmod +x yunniang-music-1.5.0-x86_64.AppImage
+./yunniang-music-1.5.0-x86_64.AppImage
 ```
 
 > 若提示缺 FUSE：`sudo apt install libfuse2`
@@ -291,9 +291,16 @@ npm run dist:deb       # 仅 deb
 产物位于 `release/`：
 
 ```
-release/云娘音乐-1.0.0-x86_64.AppImage
-release/yunniang-music_1.0.0_amd64.deb
+release/yunniang-music-1.5.0-x86_64.AppImage
+release/yunniang-music_1.5.0_amd64.deb
+release/latest-linux.yml              # 自动更新元数据，必须随 Release 一起上传
 ```
+
+> **发版清单（务必逐项核对）**：创建 Release 后必须上传**三个**附件 —— AppImage、deb、`latest-linux.yml`。
+> 漏传 `latest-linux.yml` 会让自动更新检查报 `404 Cannot find latest-linux.yml`。
+> 并且 **AppImage 附件名必须与 `latest-linux.yml` 里 `files[].url` 完全一致**
+> （都用 `yunniang-music-<version>-x86_64.AppImage`）；上传时改名而不改元数据会导致下载 404。
+> 应用内下载默认经 `https://v4.gh-proxy.org/` 加速，该代理支持 Range / 差分下载。
 
 > **国内网络提示**：GitHub 直连可能超时。本项目已验证可通过代理前缀绕过：
 > ```bash

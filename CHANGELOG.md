@@ -2,6 +2,46 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：修复 bug 升 PATCH，新增功能升 MINOR，重大变更升 MAJOR。
 
+## [1.5.0] - 2026-11-13
+
+自动更新的「下载更新」接入 **gh-proxy 加速镜像**，并修复了导致应用内下载必然失败的两个缺陷。
+
+### 新增：下载加速
+- 更新源改为 `https://v4.gh-proxy.org/` 前缀 + `releases/latest/download`（永续最新地址），
+  元数据与安装包下载都走加速镜像
+- 实测：直连 GitHub 的大文件 Range 请求返回 302 且实收 0 字节；经镜像返回 206、
+  单段 1MB 校验通过（ELF 魔数正确），多段 Range 返回 `multipart/byteranges`，
+  完整下载 131,852,213 字节达 24–40 MB/s 并通过 sha512 校验
+- 设置页新增「下载通道」一行，显示当前走加速镜像还是直连 GitHub
+- 镜像检查失败时自动回退直连 GitHub 并重新检查（此时才会重建 provider 与文件 URL）
+- deb 与 AppImage 均支持应用内下载；deb 下载完成后由 electron-updater 通过
+  pkexec / sudo 提权安装
+
+### 修复（重要）
+1. **应用内下载必然 404**：`appImage.artifactName` 原用中文 `${productName}`，
+   electron-builder 为兼容 GitHub 将附件改写为 `YunniangMusic-<v>-x86_64.AppImage`，
+   但 `latest-linux.yml` 记录的是 `yunniang-music-<v>-x86_64.AppImage`，
+   两者不一致 → 检查能过、下载永远 404。现将产物名固定为纯 ASCII 的
+   `${name}-${version}-${arch}.AppImage`，产物、元数据、上传附件三者统一。
+2. **无效的下载阶段镜像回退**：`downloadUpdate()` 复用的是检查阶段缓存的
+   `updateInfoAndProvider`（其中已含拼好的代理 URL），此时更换 feed 不会改变
+   正在下载的地址，只会重复下载同一个失败 URL。已移除该分支，回退只保留在
+   检查阶段；下载失败给出明确中文提示并引导「前往下载页」手动获取。
+3. 自动回退期间抑制 electron-updater 派发的中间 error 事件，避免 UI 状态抖动。
+4. `unknown` 安装形态不再显示无法生效的「下载更新」按钮。
+5. 错误状态文案不再一律显示「检查失败」（下载失败也会复用该状态）。
+
+### 发版清单（已写入 README）
+创建 Release 必须上传**三个**附件：AppImage、deb、`latest-linux.yml`，
+且 AppImage 附件名必须与 yml 中 `files[].url` 完全一致。
+
+### 回归
+| 项目 | 结果 |
+|---|---|
+| 类型检查 | 0 错误 |
+| 单元测试 | 72 / 72 |
+| 端到端下载（gh-proxy，经本地转发服务） | 进度 18.6% → 100%，131852213 字节，sha512 通过，`update-downloaded` 触发 |
+
 ## [1.4.0] - 2026-11-13
 
 新增**自动更新**。用户不再需要手动重新下载安装包。
