@@ -38,6 +38,19 @@ const api = {
     return () => ipcRenderer.removeListener('lyric:update', h)
   },
 
+  // 自动更新
+  getUpdateInfo: () => ipcRenderer.invoke('update:info'),
+  getUpdateStatus: () => ipcRenderer.invoke('update:status'),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  openReleasePage: () => ipcRenderer.invoke('update:openReleasePage'),
+  onUpdateStatus: (cb) => {
+    const h = (_e, data) => cb(data)
+    ipcRenderer.on('update:status', h)
+    return () => ipcRenderer.removeListener('update:status', h)
+  },
+
   // 窗口
   winMinimize: () => ipcRenderer.invoke('win:minimize'),
   winMaximize: () => ipcRenderer.invoke('win:maximize'),

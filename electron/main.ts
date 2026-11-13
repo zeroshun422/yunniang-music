@@ -6,6 +6,14 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 // 音质解析逻辑抽到独立模块，便于单测（见 tests/quality.test.ts）
 import {
+  initAutoUpdater,
+  checkForUpdates,
+  downloadUpdate,
+  quitAndInstall,
+  getUpdateStatus,
+  getUpdateInfo,
+} from './updater'
+import {
   QUALITY_CHAIN as Q_CHAIN,
   levelToBr as qLevelToBr,
   inferRealLevel as qInferRealLevel,
@@ -639,6 +647,20 @@ function setupIPC() {
   })
   ipcMain.handle('win:close', () => mainWindow?.close())
   ipcMain.handle('win:isMaximized', () => mainWindow?.isMaximized() ?? false)
+
+  // --- 自动更新 ---
+  ipcMain.handle('update:info', () => getUpdateInfo())
+  ipcMain.handle('update:status', () => getUpdateStatus())
+  ipcMain.handle('update:check', () => checkForUpdates())
+  ipcMain.handle('update:download', () => downloadUpdate())
+  ipcMain.handle('update:install', () => {
+    quitAndInstall()
+    return true
+  })
+  ipcMain.handle('update:openReleasePage', () => {
+    shell.openExternal('https://github.com/zeroshun422/yunniang-music/releases/latest')
+    return true
+  })
 }
 
 function mergeCookie(oldCookie, setCookieArray) {
@@ -800,6 +822,14 @@ app.whenReady().then(async () => {
   }
 
   setupIPC()
+
+  // 初始化自动更新：状态推送到主窗口
+  initAutoUpdater((status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update:status', status)
+    }
+  })
+
   createMainWindow()
   createTray()
 

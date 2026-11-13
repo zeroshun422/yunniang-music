@@ -2,6 +2,13 @@ appId: com.yunniang.music
 productName: 云娘音乐
 copyright: Copyright © 2026 yunniang
 
+# 自动更新源：electron-updater 会读取打包时写入的 app-update.yml
+publish:
+  provider: github
+  owner: zeroshun422
+  repo: yunniang-music
+  releaseType: release
+
 directories:
   output: release
   buildResources: build

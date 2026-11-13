@@ -5,6 +5,7 @@ import { QUALITIES, levelToLabel } from '@/api/bridge'
 import type { QualityLevel } from '@/types'
 import { coverUrl } from '@/api/ncm'
 import { IconFolder, IconDownload } from '@/components/Icons'
+import { useUpdate, describeUpdate } from '@/store/update'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
@@ -13,6 +14,17 @@ export function SettingsPage() {
   const [platform, setPlatform] = useState<any>(null)
   const [probe, setProbe] = useState<any>(null)
   const [probing, setProbing] = useState(false)
+
+  const updateStatus = useUpdate((s) => s.status)
+  const updateInfo = useUpdate((s) => s.info)
+  const checkUpdate = useUpdate((s) => s.check)
+  const downloadUpdate = useUpdate((s) => s.download)
+  const installUpdate = useUpdate((s) => s.install)
+  const openReleasePage = useUpdate((s) => s.openReleasePage)
+
+  useEffect(() => {
+    useUpdate.getState().init()
+  }, [])
 
   useEffect(() => {
     window.yun.getConfig().then(setCfg).catch(() => {})
@@ -150,6 +162,79 @@ export function SettingsPage() {
       </section>
 
       {/* 关于 */}
+      {/* 软件更新 */}
+      <section className="mb-24">
+        <div className="section-title">软件更新</div>
+        <div style={{ background: 'var(--bg-2)', borderRadius: 10, padding: '14px 16px' }}>
+          <div className="row-between" style={{ padding: '4px 0', fontSize: 12.5 }}>
+            <span className="muted">当前版本</span>
+            <span>v{updateInfo?.currentVersion || cfg?.version || '—'}</span>
+          </div>
+          <div className="row-between" style={{ padding: '4px 0', fontSize: 12.5 }}>
+            <span className="muted">安装形态</span>
+            <span>
+              {updateInfo?.format === 'appimage' ? 'AppImage（可原地更新）'
+                : updateInfo?.format === 'deb' ? 'deb（需系统安装）'
+                : '未知'}
+            </span>
+          </div>
+          <div className="row-between" style={{ padding: '4px 0', fontSize: 12.5 }}>
+            <span className="muted">状态</span>
+            <span
+              style={{
+                color: updateStatus.state === 'error' ? 'var(--error-text)'
+                  : updateStatus.state === 'available' || updateStatus.state === 'downloaded'
+                  ? 'var(--accent)' : 'var(--text-1)',
+              }}
+            >
+              {describeUpdate(updateStatus)}
+            </span>
+          </div>
+
+          {updateStatus.state === 'downloading' && (
+            <div className="progress-line" style={{ marginTop: 10 }}>
+              <div style={{ width: `${updateStatus.percent}%` }} />
+            </div>
+          )}
+
+          <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            <button
+              className="btn sm"
+              onClick={() => checkUpdate()}
+              disabled={updateStatus.state === 'checking' || updateStatus.state === 'downloading'}
+            >
+              {updateStatus.state === 'checking' ? '检查中…' : '检查更新'}
+            </button>
+
+            {updateStatus.state === 'available' && updateInfo?.format === 'appimage' && (
+              <button className="btn sm primary" onClick={() => downloadUpdate()}>
+                下载更新
+              </button>
+            )}
+
+            {updateStatus.state === 'downloaded' && (
+              <button className="btn sm primary" onClick={() => installUpdate()}>
+                重启并安装
+              </button>
+            )}
+
+            {(updateStatus.state === 'available' && updateInfo?.format === 'deb') && (
+              <button className="btn sm ghost" onClick={() => openReleasePage()}>
+                前往下载页
+              </button>
+            )}
+          </div>
+
+          <div className="small muted mt-12" style={{ lineHeight: 1.75 }}>
+            {updateInfo?.format === 'appimage'
+              ? 'AppImage 版本支持应用内自动更新：检测到新版本后可下载并在重启时生效。'
+              : updateInfo?.format === 'deb'
+              ? 'deb 版本需要 sudo 安装，因此检测到新版本后会引导你前往下载页手动更新。'
+              : '当前安装形态无法应用内更新，请前往下载页获取新版本。'}
+          </div>
+        </div>
+      </section>
+
       <section>
         <div className="section-title">关于</div>
         <div style={{ background: 'var(--bg-2)', borderRadius: 10, padding: '14px 16px' }}>

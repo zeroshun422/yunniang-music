@@ -1,5 +1,15 @@
 import type { QualityLevel, QualityOption } from '@/types'
 
+/** 自动更新状态机，与 electron/updater.ts 的 UpdateStatus 保持一致 */
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'available'; version: string; releaseNotes?: string; releaseDate?: string }
+  | { state: 'not-available'; currentVersion: string }
+  | { state: 'downloading'; percent: number; bytesPerSecond?: number; transferred?: number; total?: number }
+  | { state: 'downloaded'; version: string }
+  | { state: 'error'; message: string }
+
 declare global {
   interface Window {
     yun: {
@@ -25,6 +35,19 @@ declare global {
       winClose(): Promise<void>
       winIsMaximized(): Promise<boolean>
       onMaximized(cb: (v: boolean) => void): () => void
+      // 自动更新
+      getUpdateInfo(): Promise<{
+        currentVersion: string
+        format: 'appimage' | 'deb' | 'unknown'
+        packaged: boolean
+        feedConfigured: boolean
+      }>
+      getUpdateStatus(): Promise<UpdateStatus>
+      checkUpdate(): Promise<UpdateStatus>
+      downloadUpdate(): Promise<boolean>
+      installUpdate(): Promise<boolean>
+      openReleasePage(): Promise<boolean>
+      onUpdateStatus(cb: (s: UpdateStatus) => void): () => void
     }
   }
 }

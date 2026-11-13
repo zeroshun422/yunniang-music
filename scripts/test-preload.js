@@ -243,6 +243,20 @@ contextBridge.exposeInMainWorld('yun', {
   lyricToggle: async () => true,
   lyricSetIgnoreMouse: async () => true,
   onLyricUpdate: () => () => {},
+  // 自动更新（mock：已是最新版）
+  getUpdateInfo: async () => ({
+    currentVersion: '1.3.0',
+    format: 'deb',
+    packaged: true,
+    feedConfigured: true,
+  }),
+  getUpdateStatus: async () => ({ state: 'not-available', currentVersion: '1.3.0' }),
+  checkUpdate: async () => ({ state: 'not-available', currentVersion: '1.3.0' }),
+  downloadUpdate: async () => true,
+  installUpdate: async () => true,
+  openReleasePage: async () => true,
+  onUpdateStatus: () => () => {},
+
   winMinimize: async () => {},
   winMaximize: async () => false,
   winClose: async () => {},
