@@ -18,6 +18,7 @@ await build({
   entryPoints: [
     path.join(root, 'tests/quality.test.ts'),
     path.join(root, 'tests/player.test.ts'),
+    path.join(root, 'tests/auth.test.ts'),
   ],
   bundle: true,
   platform: 'node',
@@ -39,7 +40,7 @@ fs.writeFileSync(path.join(outdir, 'package.json'), JSON.stringify({ type: 'modu
 // 测试文件 import 的是 '../electron/quality.js'，
 // 编译后目录结构变为 dist-test/tests/*.js 与 dist-test/electron/*.js，相对路径仍然成立
 // outbase 使产物直接落在 outdir 根目录
-const testFiles = ['quality.test.js', 'player.test.js']
+const testFiles = ['quality.test.js', 'player.test.js', 'auth.test.js']
   .map((f) => path.join(outdir, f))
   .filter((f) => fs.existsSync(f))
 

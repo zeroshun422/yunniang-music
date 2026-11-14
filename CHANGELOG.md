@@ -2,6 +2,63 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：修复 bug 升 PATCH，新增功能升 MINOR，重大变更升 MAJOR。
 
+## [1.5.1] - 2026-11-14
+
+修复**登录信息丢失**（重启后需重新登录）。两个根因都已定位并用测试锁定。
+
+### 根因一：登录凭据从未被正确持久化（主因）
+
+内嵌的 `NeteaseCloudMusicApi` 用 `res.send(body)` 返回响应，**不设置 `Set-Cookie`
+响应头**，而是把凭据放在 JSON 的 `body.cookie` 字段里
+（见 `module/login_qr_check.js`、`module/login_cellphone.js`）。
+
+主进程旧实现只读响应头：
+
+```ts
+const setCookies = res.headers.getSetCookie()  // 恒为空数组
+if (setCookies.length) { /* 永远不执行 */ }
+```
+
+于是登录凭据**从未落盘**。实测 `body.cookie` 的真实形态还是「多条 Set-Cookie 用
+`join(';')` 拼成的长串」，属性与键值对交织：
+
+```
+MUSIC_U=xxx; Max-Age=1296000; Path=/; __csrf=yyy; Max-Age=1296000; Path=/
+```
+
+旧 `mergeCookie` 用 `split(';')[0]` 取第一段，恰好只留下匿名的 `NMTID`，
+这与事故现场文件内容完全吻合（文件里只有 `NMTID`，没有 `MUSIC_U`）。
+
+**修复**
+- 主进程改为从 `body.cookie` 提取凭据并合并落盘，响应头作为兼容分支保留
+- 抽出 `electron/cookie.ts`，按「逐段扫描、跳过 Set-Cookie 属性名」解析，
+  不再用 `split(';')[0]` 截断
+- 扫码登录成功（code 803）后直接用接口返回的凭据落库，不再只依赖读回
+
+### 根因二：风控响应被误判为「登录过期」并删除凭据
+
+`bootstrap` 里只要 `/login/status` 非 200 就 `clearCookie()`，
+而网易云风控（`-460`）与临时限流会返回非 200 —— 一次偶发风控就能抹掉登录态。
+
+**修复**
+- 新增 `classifyLoginStatus()` 三态判定：仅服务端**明确**表示未登录
+  （301/302/-201/400/10004）才清理凭据
+- 风控（-460/-447/-462）、5xx、网络失败、未知 code 一律判为 `unknown`，
+  **保留凭据**，只标记未登录
+
+### 其它
+- `hasLoginCredential()` 精确判断 `MUSIC_U` 非空；`includes('MUSIC_U')`
+  会被 `MUSIC_U=` 这种空值误判
+- 新增 `electron/cookie.ts`（纯函数，无 Electron 依赖，便于单测）
+
+### 回归
+| 项目 | 结果 |
+|---|---|
+| 类型检查 | 0 错误 |
+| 单元测试 | 101 / 101（新增 29 个，覆盖 cookie 解析与登录态判定） |
+| 注入 bug 验证 | 把 `mergeCookie` 改回 `split(';')[0]` → 3 个测试失败，确认非假测试 |
+| 真机验证 | 修复后凭据成功落盘（`hasMUSIC_U=true`，1588 字节），`/login/status` 返回 `nickname=长野原烟花店biu`、`vipType=110` |
+
 ## [1.5.0] - 2026-11-13
 
 自动更新的「下载更新」接入 **gh-proxy 加速镜像**，并修复了导致应用内下载必然失败的两个缺陷。

@@ -19,6 +19,8 @@ import {
   inferRealLevel as qInferRealLevel,
   resolveWithFallback,
 } from './quality'
+// Cookie 合并 / 校验逻辑抽到独立模块，便于单测（见 tests/auth.test.ts）
+import { mergeCookie, hasLoginCredential } from './cookie'
 
 // ---------------------------------------------------------------------------
 // 云娘音乐 — Electron 主进程
@@ -566,12 +568,23 @@ function setupIPC() {
       let data
       try { data = JSON.parse(text) } catch (e) { data = { code: -1, raw: text } }
 
-      // 捕获刷新后的 Cookie（登录接口会 Set-Cookie）
-      const setCookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : []
-      if (setCookies.length) {
-        const merged = mergeCookie(cookie, setCookies)
-        await saveCookie(merged)
+      // 持久化登录凭据。
+      //
+      // 重要：内嵌的 NeteaseCloudMusicApi 用 `res.send(body)` 返回，
+      // 并不会设置 Set-Cookie 响应头 —— 它把凭据放在 JSON 的 body.cookie 里
+      // （见 module/login_qr_check.js、login_cellphone.js）。
+      // 因此这里必须从 body.cookie 取，不能只依赖响应头，否则登录态永远存不下来。
+      const bodyCookie = typeof data?.cookie === 'string' ? data.cookie : ''
+      let merged = cookie
+      if (bodyCookie && hasLoginCredential(bodyCookie)) {
+        merged = mergeCookie(cookie, [bodyCookie])
+      } else {
+        // 兼容其它可能真的走响应头的场景
+        const setCookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : []
+        if (setCookies.length) merged = mergeCookie(cookie, setCookies)
       }
+      // 只有内容真的变化才落盘，避免无谓的写盘与密钥环调用
+      if (merged && merged !== cookie) await saveCookie(merged)
       return data
     } catch (e) {
       return { code: -1, msg: '请求失败: ' + e.message }
@@ -661,23 +674,6 @@ function setupIPC() {
     shell.openExternal('https://github.com/zeroshun422/yunniang-music/releases/latest')
     return true
   })
-}
-
-function mergeCookie(oldCookie, setCookieArray) {
-  const map = new Map()
-  const pushPair = (pair) => {
-    const idx = pair.indexOf('=')
-    if (idx < 1) return
-    const k = pair.slice(0, idx).trim()
-    const v = pair.slice(idx + 1).trim()
-    if (k) map.set(k, v)
-  }
-  if (oldCookie) oldCookie.split(/;\s*/).forEach(pushPair)
-  for (const c of setCookieArray) {
-    const first = c.split(';')[0]
-    pushPair(first)
-  }
-  return Array.from(map.entries()).map(([k, v]) => `${k}=${v}`).join('; ')
 }
 
 // ---------------------------------------------------------------------------
