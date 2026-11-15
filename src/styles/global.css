@@ -11,19 +11,29 @@
 
 :root,
 :root[data-theme="light"] {
-  /* 背景层级：0 最深（内容区）→ 3 最浅（浮起元素） */
-  --bg-0: #f5f6f8;
-  --bg-1: #ffffff;
-  --bg-2: #f0f1f4;
-  --bg-3: #e7e9ee;
-  --bg-hover: #e9ebf0;
-  --bg-active: #dcdfe7;
+  /* 背景层级：0 最深（内容区）→ 3 最浅（浮起元素）
+     Liquid Glass：1/2 层改为半透明，让背后环境光层（.app-aurora）透出。
+     3 层保持不透明 —— 它同时用作封面图占位底色，透明会显得「缺图」。
+     hover/active 由实心灰改为低透明度墨色叠加：玻璃上「压暗」比「加白」更可读。 */
+  --bg-0: #eceef4;
+  --bg-1: rgba(255, 255, 255, 0.66);
+  --bg-2: rgba(255, 255, 255, 0.52);
+  --bg-3: #e4e7ee;
+  --bg-hover: rgba(20, 22, 28, 0.06);
+  --bg-active: rgba(20, 22, 28, 0.10);
+  /* 控件实心层：--bg-hover/--bg-active 现在是半透明叠加，
+     适合 hover 反馈，但不适合当按钮/轨道的底色（会与背后玻璃混出灰雾）。
+     需要「一块确定的实心浅灰」时用这两个。 */
+  --control-fill: #e8ebf1;
+  --control-fill-hover: #dde1e9;
+  --control-fill-active: #d2d7e0;
 
-  /* 文本层级：0 最强 → 3 最弱 */
-  --text-0: #14161c;
-  --text-1: #3d4250;
-  --text-2: #616879;
-  --text-3: #8b92a3;
+  /* 文本层级：0 最强 → 3 最弱
+     Glass 底比原纯白略暗且带彩，text-2/3 相应压深以维持 4.5:1 / 3.5:1 对比度 */
+  --text-0: #111319;
+  --text-1: #363b47;
+  --text-2: #5b6272;
+  --text-3: #6f7686;
 
   --accent: #ec4141;
   --accent-dim: #b82f2f;
@@ -31,8 +41,10 @@
   /* 强调色实心底上的文字色（浅色主题下仍为白字，保证对比度） */
   --on-accent: #ffffff;
 
-  --border: #e3e6ec;
-  --border-light: #d5d9e2;
+  /* 玻璃描边：玻璃块靠「外描边 + 内高光」立起来，比纯灰线更贴合材质
+     外描边取墨色低透明，内高光取白色 —— 两者叠加即 iOS 26 的「棱边」 */
+  --border: rgba(20, 22, 28, 0.10);
+  --border-light: rgba(20, 22, 28, 0.16);
 
   --radius: 8px;
   --radius-lg: 12px;
@@ -43,8 +55,66 @@
   --font: -apple-system, "Noto Sans CJK SC", "Source Han Sans SC",
     "PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
 
+  /* 阴影：玻璃浮层用「贴地紧影 + 远距离扩散」两层，单层阴影在玻璃上显脏 */
   --shadow-1: 0 4px 20px rgba(20, 22, 28, 0.08);
   --shadow-2: 0 10px 40px rgba(20, 22, 28, 0.14);
+
+  /* =========================================================
+     Liquid Glass 材质令牌
+     ---------------------------------------------------------
+     玻璃 = 半透明底色 + 背景模糊 + 饱和度提升 + 外描边 + 内高光 + 双层阴影。
+     每一项都拆成独立变量，降级时只需覆写这些变量，不用碰组件样式。
+
+     取色方式（浅色）：白色叠层，透明度随「离用户越近越大」——
+       面板 0.52 < 抽屉/浮层 0.62 < 菜单 0.72 < 标题栏 0.60
+     深色相反：底色本身是深色，靠「提亮」而非「变白」，
+     所以用 rgba(255,255,255,x) 小透明度叠加，避免发灰。
+     ========================================================= */
+
+  /* 玻璃底色（按层级） */
+  --glass-1: rgba(255, 255, 255, 0.55);   /* 侧边栏 / 播放栏：大面积、常驻 */
+  --glass-2: rgba(255, 255, 255, 0.50);   /* 内容区卡片 / 面板 */
+  --glass-3: rgba(255, 255, 255, 0.62);   /* 抽屉（推挤式，层级更高） */
+  --glass-pop: rgba(255, 255, 255, 0.74); /* 菜单 / 弹层：需要压住底下内容 */
+  --glass-bar: rgba(255, 255, 255, 0.60); /* 标题栏 / 播放栏 */
+
+  /* 模糊半径：层级越高模糊越强（px） */
+  --blur-1: 18px;
+  --blur-2: 24px;
+  --blur-3: 30px;
+  --blur-pop: 36px;
+
+  /* 饱和度提升：玻璃透出的背景必须比真实背景更「艳」才像材质，
+     纯模糊出来的灰汤是这套风格最常见的失败点 */
+  --glass-saturate: 180%;
+
+  /* 棱边：外描边 + 内高光（inset 1px 白线，模拟光线打在边缘） */
+  --glass-edge: rgba(255, 255, 255, 0.60);
+  --glass-edge-outer: rgba(20, 22, 28, 0.08);
+  --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  /* 顶部高光渐变：上亮下暗，制造「弧面」错觉 */
+  --glass-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(255, 255, 255, 0.10) 42%,
+    rgba(255, 255, 255, 0) 100%
+  );
+
+  /* 玻璃阴影：贴地紧影负责「落地」，扩散影负责「浮起」 */
+  --glass-shadow-1: 0 1px 2px rgba(20, 22, 28, 0.06), 0 8px 24px rgba(20, 22, 28, 0.08);
+  --glass-shadow-2: 0 2px 6px rgba(20, 22, 28, 0.08), 0 16px 48px rgba(20, 22, 28, 0.14);
+
+  /* --- 环境光层：给玻璃提供可被模糊的「背景内容」 ---
+     这是本方案的核心：主窗口不透明，玻璃模糊的是应用自己铺的光晕，
+     因此不依赖桌面壁纸与合成器，X11 下行为确定。 */
+  /* 浅色下刻意压低（0.10-0.14）：玻璃需要「有东西可模糊」，但浅色底接近白，
+     光斑一浓就把整页染成彩纸，丢掉玻璃该有的干净感。深色相反，见下方。 */
+  --aurora-1: rgba(236, 65, 65, 0.13);    /* 品牌红 */
+  --aurora-2: rgba(120, 96, 240, 0.12);   /* 冷紫，与红形成冷暖对拉 */
+  --aurora-3: rgba(64, 176, 214, 0.12);   /* 青，压住整体热度 */
+  --aurora-4: rgba(240, 180, 120, 0.11);  /* 暖橙，出现在左下 */
+  --aurora-base: #eef0f6;
+  --aurora-opacity: 1;
 
   --z-sidebar: 10;
   --z-playerbar: 20;
@@ -65,6 +135,9 @@
   --notice-border: rgba(214, 150, 0, 0.32);
   --notice-text: #8a6100;
   --notice-label-bg: rgba(214, 150, 0, 0.18);
+  /* 提示条实心底：在 glass 玻璃上再叠语义色，需要一点不透明白底过渡 */
+  --toast-solid-error: #fdf3f3;
+  --toast-solid-notice: #fdf8ec;
   --notice-label-text: #7a5600;
 
   /* --- 组件级：滚动条 / 滑块 / 卡片阴影 --- */
@@ -90,28 +163,63 @@
 }
 
 :root[data-theme="dark"] {
+  /* 深色玻璃：底色仍偏深，靠小透明度白色「提亮」，不能直接变白 */
   --bg-0: #0a0a0f;
-  --bg-1: #101018;
-  --bg-2: #16161f;
+  --bg-1: rgba(26, 26, 38, 0.62);
+  --bg-2: rgba(32, 32, 46, 0.52);
   --bg-3: #1d1d28;
-  --bg-hover: #23232f;
-  --bg-active: #2a2a38;
+  --bg-hover: rgba(255, 255, 255, 0.07);
+  --bg-active: rgba(255, 255, 255, 0.12);
+  --control-fill: #23232f;
+  --control-fill-hover: #2b2b3a;
+  --control-fill-active: #333344;
 
   --text-0: #f2f2f5;
-  --text-1: #b9b9c6;
-  --text-2: #7c7c8d;
-  --text-3: #55555f;
+  --text-1: #bcbcca;
+  --text-2: #8b8b9d;
+  --text-3: #7c7c8d;
 
   --accent: #ec4141;
   --accent-dim: #b82f2f;
   --accent-soft: rgba(236, 65, 65, 0.14);
   --on-accent: #ffffff;
 
-  --border: #24242f;
-  --border-light: #2e2e3a;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-light: rgba(255, 255, 255, 0.15);
 
   --shadow-1: 0 4px 20px rgba(0, 0, 0, 0.4);
   --shadow-2: 0 10px 40px rgba(0, 0, 0, 0.55);
+
+  /* --- 深色 Liquid Glass 令牌 ---
+     深色玻璃的白不是「加白」，而是「提亮」：透明度更低（0.05-0.12），
+     否则整块变成灰雾，深色的通透感立刻消失。
+     内高光也压到 0.10，深色下 1px 白线过于抢眼。 */
+  --glass-1: rgba(30, 30, 44, 0.58);
+  --glass-2: rgba(34, 34, 50, 0.52);
+  --glass-3: rgba(38, 38, 54, 0.64);
+  --glass-pop: rgba(40, 40, 58, 0.76);
+  --glass-bar: rgba(30, 30, 44, 0.62);
+
+  --glass-edge: rgba(255, 255, 255, 0.10);
+  --glass-edge-outer: rgba(0, 0, 0, 0.30);
+  --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --glass-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.03) 42%,
+    rgba(255, 255, 255, 0) 100%
+  );
+
+  --glass-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.30), 0 8px 24px rgba(0, 0, 0, 0.34);
+  --glass-shadow-2: 0 2px 6px rgba(0, 0, 0, 0.36), 0 16px 48px rgba(0, 0, 0, 0.50);
+
+  /* 深色下环境光要更亮更饱和，否则透过玻璃几乎不可见 */
+  --aurora-1: rgba(236, 65, 65, 0.34);
+  --aurora-2: rgba(120, 96, 240, 0.32);
+  --aurora-3: rgba(64, 176, 214, 0.26);
+  --aurora-4: rgba(240, 180, 120, 0.16);
+  --aurora-base: #0b0b12;
+  --aurora-opacity: 1;
 
   --error-bg: rgba(236, 65, 65, 0.12);
   --error-border: rgba(236, 65, 65, 0.32);
@@ -123,6 +231,8 @@
   --notice-border: rgba(255, 190, 60, 0.28);
   --notice-text: #ffce6b;
   --notice-label-bg: rgba(255, 190, 60, 0.2);
+  --toast-solid-error: #241417;
+  --toast-solid-notice: #241f14;
   --notice-label-text: #ffd98a;
 
   --scrollbar-thumb: #33333f;
@@ -160,6 +270,35 @@ body {
   user-select: none;
 }
 
+/* =========================================================
+   环境光层（Aurora）
+   ---------------------------------------------------------
+   Liquid Glass 的玻璃必须"有东西可模糊"。主窗口不透明，
+   所以模糊对象由应用自己铺设：一层固定的极光渐变。
+   优点：不依赖桌面壁纸与窗口管理器合成，X11/Wayland 行为一致，
+   也不需要改主进程的 transparent 设置（那会带来拖影与黑底风险）。
+
+   放在 body::before + z-index:-1：绘制在 body 背景之上、
+   所有正常流内容之下，因此所有 backdrop-filter 都能采样到它。
+
+   用径向渐变而非 filter: blur()：
+   渐变的软过渡本质上就是模糊，且开销远低于实时光栅模糊。
+   ========================================================= */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 62% 52% at 10% 4%, var(--aurora-1), transparent 62%),
+    radial-gradient(ellipse 56% 58% at 92% 10%, var(--aurora-2), transparent 64%),
+    radial-gradient(ellipse 66% 48% at 80% 92%, var(--aurora-3), transparent 66%),
+    radial-gradient(ellipse 52% 42% at 16% 94%, var(--aurora-4), transparent 62%),
+    var(--aurora-base);
+  opacity: var(--aurora-opacity);
+}
+
 button {
   font-family: inherit;
   font-size: inherit;
@@ -192,11 +331,13 @@ a { color: inherit; text-decoration: none; }
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: content-box; }
 
 /* ============ 应用骨架 ============ */
+/* 骨架本身不再铺不透明底色：让 body::before 的环境光层透上来，
+   玻璃面板才有可模糊的内容。--bg-0 仅作为兜底色留在 body 上。 */
 .app-shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--bg-0);
+  background: transparent;
 }
 
 .app-body {
@@ -206,17 +347,85 @@ a { color: inherit; text-decoration: none; }
   min-height: 0;
 }
 
+/* =========================================================
+   玻璃基底：可复用工具类
+   ---------------------------------------------------------
+   任何容器想变成玻璃，加 .glass 即可，再按需覆盖 --glass-level
+   对应的底色变量。数值定义在材质令牌区，不在此处硬编码。
+   ========================================================= */
+.glass {
+  position: relative;
+  background: var(--glass-2);
+  -webkit-backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-edge-outer);
+  /* 内高光走 box-shadow 而非 border：border 会占布局高度，1px 高光会撑歪栅格 */
+  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-1);
+}
+
+/* 顶部弧面高光：只覆盖上半部，模拟光线自上方打在弧面上 */
+.glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--glass-sheen);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 玻璃内部内容要压在 sheen 之上 */
+.glass > * { position: relative; z-index: 1; }
+
+/* 页面级面板：设置页的分组块、雷达/歌单头部信息区等。
+   与 .glass 的区别是「不需要浮起」，它贴在内容流里，
+   所以只保留半透明底 + 描边 + 内高光，阴影降一档。
+   30+ 处内联 style 改用这个类，避免每页各写一遍玻璃参数。 */
+.panel {
+  background: var(--glass-2);
+  -webkit-backdrop-filter: blur(var(--blur-1)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-1)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-edge-outer);
+  border-radius: 14px;
+  box-shadow: var(--glass-inner-highlight);
+}
+
+/* 内嵌小块：面板内部的次级容器（如存储路径框），
+   用「更深的凹槽」而非又一层玻璃，避免层层叠加显脏。 */
+.panel-inset {
+  background: var(--control-fill);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+}
+
+/* 可点击的面板：hover 时描边与底色同时提亮，给"我能点"的物理反馈 */
+.panel-clickable {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.panel-clickable:hover {
+  border-color: var(--border-light);
+  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-1);
+}
+
 /* ============ 标题栏 ============ */
 .titlebar {
   height: var(--titlebar-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--bg-1);
-  border-bottom: 1px solid var(--border);
+  background: var(--glass-bar);
+  -webkit-backdrop-filter: blur(var(--blur-1)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-1)) saturate(var(--glass-saturate));
+  /* 只留底边描边：标题栏贴窗口顶，上边框会被裁掉，留着反而多一条线 */
+  border-bottom: 1px solid var(--glass-edge-outer);
+  box-shadow: var(--glass-inner-highlight);
   -webkit-app-region: drag;
   padding-left: 12px;
   flex-shrink: 0;
+  position: relative;
+  /* 标题栏必须高于内容区，否则滚动内容会从它下面透出 */
+  z-index: var(--z-sidebar);
 }
 
 .titlebar-left {
@@ -316,17 +525,24 @@ ebar-nav { display: flex; gap: 4px; }
 .win-btn.close:hover { background: #e81123; color: #fff; }
 
 /* ============ 侧边栏 ============ */
+/* 玻璃质感：半透明 + 模糊环境光。侧边栏是常驻大面积区块，
+   用最低的白色透明度（0.55）避免"糊成一片白"。 */
 .sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
-  background: var(--bg-1);
-  border-right: 1px solid var(--border);
+  background: var(--glass-1);
+  -webkit-backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
+  border-right: 1px solid var(--glass-edge-outer);
+  box-shadow: var(--glass-inner-highlight);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   /* 紧凑内边距，配合新增的「主题切换」项，避免出现滚动条把底部用户区顶出视口 */
   padding-bottom: 4px;
+  position: relative;
+  z-index: var(--z-sidebar);
 }
 
 /* 侧边栏滚动条收窄，减少对布局的挤压感 */
@@ -384,10 +600,13 @@ ebar-nav { display: flex; gap: 4px; }
   position: relative;
 }
 .sidebar-item:hover { background: var(--bg-hover); color: var(--text-0); }
+/* 选中态：在玻璃底上叠一层品牌色薄雾 + 内高光，
+   让它「压在玻璃上」而不是「换成另一块色块」 */
 .sidebar-item.active {
   background: var(--accent-soft);
   color: var(--text-0);
   font-weight: 500;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
 .sidebar-item.active::before {
   content: '';
@@ -415,14 +634,15 @@ ebar-nav { display: flex; gap: 4px; }
   color: var(--text-3);
 }
 
-/* ============ 主内容区 ============ */
+/* 主内容区：完全透明，直接显示环境光层 —— 这是玻璃读起来"通透"的关键。
+   绝不能给它加 backdrop-filter：一旦成为包含块，抽屉的 position:fixed 就会失效。 */
 .main-area {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg-0);
+  background: transparent;
   /* 显式基线：transition 需要一个已存在的起始值，
      否则 Chromium 会停在初始值，导致抽屉打开时内容区不收窄 */
   margin-right: 0;
@@ -447,24 +667,45 @@ ebar-nav { display: flex; gap: 4px; }
 .page-sub { font-size: 12.5px; color: var(--text-2); }
 
 /* ============ 通用组件 ============ */
+
+/* 玻璃胶囊按钮：默认态是「一层很薄的玻璃」，hover 时提亮。
+   注意不要给按钮加 backdrop-filter —— 列表里几十个按钮同时模糊会明显掉帧，
+   这里用半透明底 + 描边模拟，视觉上几乎等价。 */
 .btn {
   padding: 7px 15px;
   border-radius: 18px;
   font-size: 13px;
-  background: var(--bg-3);
+  background: var(--control-fill);
   color: var(--text-1);
+  border: 1px solid var(--border);
   transition: 0.14s;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   white-space: nowrap;
 }
-.btn:hover { background: var(--bg-hover); color: var(--text-0); }
-.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn:hover { background: var(--control-fill-hover); color: var(--text-0); border-color: var(--border-light); }
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+  /* 强调色自身发光，作为玻璃群里唯一的"实心热点" */
+  box-shadow: 0 2px 10px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
 .btn.primary:hover { background: var(--accent-dim); }
 .btn.ghost { background: transparent; border: 1px solid var(--border-light); }
 .btn.ghost:hover { background: var(--bg-hover); border-color: var(--ghost-hover-border); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* 主按钮禁用态不能只靠整体降透明度：
+   白字压在半透明的红底上会变成粉底白字，对比度掉到 2:1 以下。
+   改成「中性实心底 + 弱化文字」，禁用是明确状态而不是模糊状态。 */
+.btn.primary:disabled {
+  opacity: 1;
+  background: var(--control-fill);
+  color: var(--text-3);
+  border-color: var(--border);
+  box-shadow: none;
+}
 .btn.sm { padding: 5px 12px; font-size: 12px; }
 
 .chip {
@@ -472,12 +713,18 @@ ebar-nav { display: flex; gap: 4px; }
   border-radius: 15px;
   font-size: 12.5px;
   color: var(--text-1);
-  background: var(--bg-2);
+  background: var(--glass-2);
+  border: 1px solid var(--border);
   transition: 0.13s;
   white-space: nowrap;
 }
-.chip:hover { background: var(--bg-hover); color: var(--text-0); }
-.chip.active { background: var(--accent); color: var(--on-accent); }
+.chip:hover { background: var(--bg-hover); color: var(--text-0); border-color: var(--border-light); }
+.chip.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+  box-shadow: 0 2px 10px var(--accent-glow);
+}
 
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
 
@@ -487,14 +734,20 @@ ebar-nav { display: flex; gap: 4px; }
   gap: 20px 18px;
 }
 
+/* 卡片：hover 时浮起一层玻璃。用 transform 而非仅换底色，
+   让「可点击」有物理感；位移只有 2px，不喧哗。 */
 .card {
   cursor: pointer;
-  transition: 0.18s;
+  transition: background 0.18s, transform 0.18s, box-shadow 0.18s;
   border-radius: var(--radius-lg);
   padding: 6px;
   margin: -6px;
 }
-.card:hover { background: var(--bg-2); }
+.card:hover {
+  background: var(--glass-2);
+  box-shadow: var(--glass-shadow-1), var(--glass-inner-highlight);
+  transform: translateY(-2px);
+}
 
 .card-cover-wrap { position: relative; margin-bottom: 9px; }
 
@@ -518,7 +771,7 @@ ebar-nav { display: flex; gap: 4px; }
   opacity: 0;
   transform: translateY(4px);
   transition: 0.18s;
-  box-shadow: 0 3px 12px var(--accent-glow);
+  box-shadow: 0 3px 12px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   /* 固定白：位于强调色实心底上，两主题一致 */
   color: var(--on-accent);
 }
@@ -652,11 +905,18 @@ ebar-nav { display: flex; gap: 4px; }
 }
 
 /* ============ 播放栏 ============ */
+/* 玻璃：与标题栏同层级，播放栏是最需要"悬浮"感的区块。
+   ⚠️ 这里刻意**不用** backdrop-filter 直接作用在 .player-bar 上，而交给
+   ::before 伪元素承载。原因：带 filter/backdrop-filter 的元素会成为
+   position:fixed 后代的包含块，而播放队列 / 歌词抽屉（.side-drawer）
+   正是渲染在 .player-bar 内部 —— 一旦成为包含块，抽屉会从「贴视口右侧」
+   退化成「贴播放栏内部」，直接被 78px 高的播放栏裁掉。
+   ::before 是它的孩子而非祖先，不影响包含块判定，视觉结果完全一致。 */
 .player-bar {
   height: var(--player-h);
   flex-shrink: 0;
-  background: var(--bg-1);
-  border-top: 1px solid var(--border);
+  background: transparent;
+  border-top: 1px solid var(--glass-edge-outer);
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -664,6 +924,18 @@ ebar-nav { display: flex; gap: 4px; }
   gap: 16px;
   position: relative;
   z-index: 20;
+}
+
+.player-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--glass-bar);
+  -webkit-backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-inner-highlight);
 }
 
 .pb-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -708,6 +980,9 @@ ebar-nav { display: flex; gap: 4px; }
 .pb-btn:disabled { opacity: 0.35; cursor: default; }
 .pb-btn:disabled:hover { background: none; color: var(--text-1); }
 
+/* 主播放键：整套 UI 里唯一的「实心球」，靠反相配色从玻璃群中跳出来。
+   底色用 --text-0、前景用 --bg-0：两个主题下都自动构成高对比反相关系
+   （浅色＝深底浅字，深色＝浅底深字），无需为两套主题各写一条。 */
 .pb-play {
   width: 38px; height: 38px;
   border-radius: 50%;
@@ -715,6 +990,7 @@ ebar-nav { display: flex; gap: 4px; }
   color: var(--bg-0);
   display: grid; place-items: center;
   transition: 0.14s;
+  box-shadow: 0 2px 10px rgba(20, 22, 28, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 .pb-play:hover { transform: scale(1.06); }
 .pb-play:disabled { opacity: 0.4; transform: none; }
@@ -780,7 +1056,7 @@ ebar-nav { display: flex; gap: 4px; }
   appearance: none;
   height: 4px;
   border-radius: 2px;
-  background: var(--bg-active);
+  background: var(--control-fill-active);
   cursor: pointer;
   outline: none;
   flex: 1;
@@ -788,23 +1064,29 @@ ebar-nav { display: flex; gap: 4px; }
 }
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 11px; height: 11px;
+  width: 12px; height: 12px;
   border-radius: 50%;
   background: var(--text-0);
+  /* 描边 + 微光：玻璃上的滑块若只有实心圆，会像贴纸 */
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 1px 4px rgba(20, 22, 28, 0.28);
   transition: 0.12s;
   cursor: pointer;
-  box-shadow: none;
 }
 .slider:hover::-webkit-slider-thumb { background: var(--slider-thumb); transform: scale(1.15); }
 .slider::-webkit-slider-runnable-track { border-radius: 2px; }
 
 /* ============ 弹层 ============ */
+/* 菜单是玻璃层级的最高档：它是唯一"压在内容之上、且需要阅读"的元素，
+   所以透明度最高（0.74）、模糊最强（36px）。透明度过低会认不出边界。 */
 .menu {
   position: fixed;
-  background: var(--bg-2);
-  border: 1px solid var(--border-light);
-  border-radius: 9px;
-  box-shadow: var(--shadow-2);
+  background: var(--glass-pop);
+  -webkit-backdrop-filter: blur(var(--blur-pop)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-pop)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-edge-outer);
+  border-radius: 12px;
+  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-2);
   padding: 5px;
   z-index: 1000;
   min-width: 150px;
@@ -841,7 +1123,7 @@ ebar-nav { display: flex; gap: 4px; }
 }
 .spinner {
   width: 26px; height: 26px;
-  border: 2.5px solid var(--bg-active);
+  border: 2.5px solid var(--control-fill-active);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.75s linear infinite;
@@ -922,6 +1204,12 @@ body.desktop-lyric-body {
   color: var(--fixed-on-media);
   text-shadow: 0 2px 10px rgba(0,0,0,0.85), 0 0 26px rgba(236,65,65,0.5);
   line-height: 1.35;
+  /* 在浅色壁纸上，纯白字即使有投影也会发虚。
+     加一层极淡的暗色衬底（不是 backdrop-filter —— 透明窗口上的模糊
+     在 X11 下不可靠，会整块变黑），保证任何壁纸下都读得清。 */
+  padding: 2px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
 }
 .dl-trans {
   font-size: 16px;
@@ -935,31 +1223,35 @@ body.desktop-lyric-body {
 }
 
 /* ============ 登录页 ============ */
+/* 登录页：全屏应用环境光层，登录卡片是页面里最大、最「厚」的一块玻璃。
+   这是整套风格的门面，所以卡片用更高的不透明度和更强模糊（30px）。 */
 .login-wrap {
   height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at 30% 20%, rgba(236,65,65,0.12), transparent 60%),
-              radial-gradient(ellipse at 75% 85%, rgba(90,60,220,0.12), transparent 60%),
-              var(--bg-0);
+  /* 不再自绘渐变：复用 body::before 的环境光层，与主界面同一光源 */
+  background: transparent;
   -webkit-app-region: drag;
   position: relative;
 }
 .login-card {
   width: 800px;
   max-width: 92vw;
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  box-shadow: var(--shadow-2);
+  background: var(--glass-3);
+  -webkit-backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-edge-outer);
+  border-radius: 20px;
+  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-2);
   display: grid;
   grid-template-columns: 300px 1fr;
   overflow: hidden;
   -webkit-app-region: no-drag;
 }
 .login-side {
-  background: linear-gradient(160deg, var(--bg-2), var(--bg-1));
+  /* 左侧栏比正文再深一档：靠透明度的差异分层，而不是靠不透明色块切割 */
+  background: linear-gradient(160deg, var(--bg-hover), transparent);
   padding: 34px 26px;
   display: flex;
   flex-direction: column;
@@ -1002,16 +1294,21 @@ body.desktop-lyric-body {
 .form-input {
   width: 100%;
   height: 40px;
-  background: var(--bg-2);
+  background: var(--control-fill);
   border: 1px solid var(--border-light);
-  border-radius: 9px;
+  border-radius: 10px;
   padding: 0 13px;
   font-size: 13.5px;
   color: var(--text-0);
   transition: 0.15s;
   user-select: text;
 }
-.form-input:focus { border-color: var(--accent); background: var(--bg-3); }
+.form-input:focus {
+  border-color: var(--accent);
+  background: var(--control-fill-hover);
+  /* 聚焦光晕：玻璃上仅换描边色不够，加一圈极淡的强调色光才「亮」起来 */
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 .form-input::placeholder { color: var(--text-3); }
 
 .qr-box {
@@ -1062,7 +1359,10 @@ body.desktop-lyric-body {
 /* 搜索结果分类计数 */
 .search-meta { font-size: 12.5px; color: var(--text-2); margin-bottom: 14px; }
 
-/* 表格头部 */
+/* 表格头部：sticky 表头也必须玻璃化。
+   若保留 --bg-0 实底，深色下会在内容区顶部压出一条纯黑带，
+   与周围的半透明玻璃完全割裂 —— 滚动时尤其刺眼。
+   这里用「更透明的玻璃 + 模糊」：它要盖住滚过的行，但不需要变成实心。 */
 .table-head {
   display: grid;
   grid-template-columns: 42px 1fr 132px 90px 56px;
@@ -1070,11 +1370,13 @@ body.desktop-lyric-body {
   height: 34px;
   position: sticky;
   top: 0;
-  background: var(--bg-0);
+  background: var(--glass-1);
+  -webkit-backdrop-filter: blur(var(--blur-1)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-1)) saturate(var(--glass-saturate));
   z-index: 2;
   font-size: 11.5px;
   color: var(--text-3);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--glass-edge-outer);
   margin-bottom: 6px;
   padding: 0 4px;
 }
@@ -1099,20 +1401,24 @@ body.desktop-lyric-body {
   display: flex;
   align-items: center;
   gap: 9px;
-  background: var(--bg-2);
+  background: var(--control-fill);
   border: 1px solid var(--border-light);
   border-radius: 18px;
   padding: 0 15px;
   height: 36px;
   transition: 0.15s;
 }
-.search-input-wrap:focus-within { border-color: var(--accent); background: var(--bg-3); }
+.search-input-wrap:focus-within {
+  border-color: var(--accent);
+  background: var(--control-fill-hover);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 .search-input-wrap input { flex: 1; font-size: 13.5px; user-select: text; }
 .search-input-wrap input::placeholder { color: var(--text-3); }
 
 .progress-line {
   height: 3px;
-  background: var(--bg-active);
+  background: var(--control-fill-active);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -1148,10 +1454,14 @@ body.desktop-lyric-body {
   gap: 8px;
   max-width: 100%;
   padding: 9px 13px;
-  border-radius: var(--radius);
+  border-radius: 12px;
   font-size: 12.5px;
   line-height: 1.45;
-  box-shadow: var(--shadow-1);
+  /* 提示条浮在播放栏之上，属于「最高浮层」：用菜单级玻璃，
+     否则半透明底的文字压在歌曲封面/封面上会读不清 */
+  -webkit-backdrop-filter: blur(var(--blur-pop)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-pop)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-1);
   animation: toastIn 0.16s ease-out;
   /* 长文案最多两行，超出省略，避免横向铺满遮挡 */
   overflow: hidden;
@@ -1174,7 +1484,10 @@ body.desktop-lyric-body {
 }
 
 .player-toast--error {
-  background: var(--error-bg);
+  /* 语义色本身是低透明度叠色，再叠加模糊会「脏」；
+     所以这里用 error-bg 压一层不透明底，保证红/黄提示在两套主题下都纯正 */
+  background-color: var(--toast-solid-error);
+  background-image: none;
   border: 1px solid var(--error-border);
   color: var(--error-text);
 }
@@ -1184,7 +1497,8 @@ body.desktop-lyric-body {
 }
 
 .player-toast--notice {
-  background: var(--notice-bg);
+  background-color: var(--toast-solid-notice);
+  background-image: none;
   border: 1px solid var(--notice-border);
   color: var(--notice-text);
 }
@@ -1199,11 +1513,15 @@ body.desktop-lyric-body {
 }
 
 /* ---------- 右侧抽屉（队列 / 歌词）：推挤内容，不遮挡 ---------- */
-/* 通过给主内容区加右边距实现，抽屉本身用 fixed 贴住播放栏上方 */
+/* 通过给主内容区加右边距实现，抽屉本身用 fixed 贴住播放栏上方。
+   ⚠️ 这条规则必须保留：它让抽屉「推挤」主内容而不是盖住内容。
+   改造玻璃时曾因同块编辑误删，注意别再动它。 */
 .app-body.drawer-open .main-area {
   margin-right: var(--drawer-w);
 }
 
+/* 抽屉是「高一级的玻璃」：比内容面板更不透明，因为它推挤内容而非叠加，
+   用户需要把它读成一个独立平面。 */
 .side-drawer {
   position: fixed;
   top: var(--titlebar-h);
@@ -1211,8 +1529,11 @@ body.desktop-lyric-body {
   bottom: var(--player-h);
   width: var(--drawer-w);
   max-width: 100vw;
-  background: var(--bg-1);
-  border-left: 1px solid var(--border);
+  background: var(--glass-3);
+  -webkit-backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
+  border-left: 1px solid var(--glass-edge-outer);
+  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-2);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1306,3 +1627,145 @@ body.desktop-lyric-body {
   font-variant-numeric: tabular-nums;
 }
 .queue-row.is-current .queue-row__idx { color: var(--accent); }
+
+/* =========================================================
+   Liquid Glass — 降级与无障碍
+   ---------------------------------------------------------
+   三层防线，按「破坏性从小到大」排列：
+     1. 不支持 backdrop-filter 的引擎 → 退化为不透明底色（仍可读）
+     2. 用户开启「减少透明度」 → 同上，尊重系统偏好
+     3. 低性能设备 / 减少动态效果 → 关掉高成本模糊，只留半透明与描边
+   三层都只覆写材质令牌，不碰任何组件选择器，因此不会与上方样式冲突。
+   ========================================================= */
+
+/* ---------- 1. 能力降级：浏览器不支持背景模糊 ---------- */
+/* 关键点：一旦没有模糊，半透明底色就等于「透出自己的背景」，
+   文字对比度会崩。此时必须把玻璃换成实心，语义上回到旧版观感。 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-1: #ffffff;
+    --glass-2: #f7f8fa;
+    --glass-3: #ffffff;
+    --glass-pop: #ffffff;
+    --glass-bar: #ffffff;
+    --bg-1: #ffffff;
+    --bg-2: #f0f1f4;
+    --bg-hover: #e9ebf0;
+    --bg-active: #dcdfe7;
+    --text-0: #14161c;
+    --text-1: #3d4250;
+    --text-2: #616879;
+    --text-3: #8b92a3;
+    --border: #e3e6ec;
+    --border-light: #d5d9e2;
+    /* 环境光层在无模糊时只会把底色搅浑，直接隐去 */
+    --aurora-opacity: 0;
+  }
+  :root[data-theme="dark"] {
+    --glass-1: #101018;
+    --glass-2: #16161f;
+    --glass-3: #16161f;
+    --glass-pop: #1d1d28;
+    --glass-bar: #101018;
+    --bg-1: #101018;
+    --bg-2: #16161f;
+    --bg-hover: #23232f;
+    --bg-active: #2a2a38;
+    --text-0: #f2f2f5;
+    --text-1: #b9b9c6;
+    --text-2: #8b8b9d;
+    --text-3: #6a6a7b;
+    --border: #24242f;
+    --border-light: #2e2e3a;
+  }
+  /* 内高光在实心底上会显得像多余的亮线 */
+  :root {
+    --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0);
+    --glass-sheen: none;
+  }
+}
+
+/* ---------- 2. 系统偏好：减少透明度 ---------- */
+/* Windows/macOS 有该系统开关，Linux 桌面环境（如 GNOME）也在补齐。
+   这是无障碍需求，不是审美选择，必须无条件生效。 */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-1: #ffffff;
+    --glass-2: #f7f8fa;
+    --glass-3: #ffffff;
+    --glass-pop: #ffffff;
+    --glass-bar: #ffffff;
+    --aurora-opacity: 0;
+    --glass-sheen: none;
+    --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0);
+  }
+  :root[data-theme="dark"] {
+    --glass-1: #101018;
+    --glass-2: #16161f;
+    --glass-3: #16161f;
+    --glass-pop: #1d1d28;
+    --glass-bar: #101018;
+  }
+  .glass,
+  .titlebar,
+  .sidebar,
+  .player-bar::before,
+  .menu,
+  .side-drawer,
+  .table-head,
+  .login-card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ---------- 3. 性能降级 ---------- */
+/* 两层 backdrop-filter 叠在大面积元素上，在无独显的老机器上会拖累滚动。
+   这里不按「设备型号」猜测，而是尊重用户的系统级「减少动态效果」开关 ——
+   把动画与实时模糊一起关掉是最不容易误判的策略。
+   圆角更小的浮层（菜单、抽屉）模糊半径减半，仍保留材质感。 */
+@media (prefers-reduced-motion: reduce) {
+  .card:hover { transform: none; }
+  .menu { animation: none; }
+  .side-drawer { animation: none; }
+  .player-toast { animation: none; }
+  .pb-play:hover { transform: none; }
+  .slider:hover::-webkit-slider-thumb { transform: none; }
+}
+
+/* 低性能设备的额外压缩档：由外部在 <html> 上挂 data-glass="lite" 启用
+   （留给未来设置项或用户脚本，本次改造不新增任何触发它的 UI）。
+   与上面的 prefers-reduced-motion 互补：后者关动画，这里只降低模糊成本。 */
+html[data-glass="lite"] {
+  --blur-1: 8px;
+  --blur-2: 10px;
+  --blur-3: 12px;
+  --blur-pop: 14px;
+  --glass-saturate: 130%;
+}
+
+/* ---------- 4. 键盘焦点可见 ---------- */
+/* 玻璃面板的焦点环用强调色 + 外扩，避免被半透明底吞掉 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* 鼠标点击不显示焦点环，避免按钮上残留方框 */
+:focus:not(:focus-visible) { outline: none; }
+
+/* ---------- 5. 窄窗口适配 ---------- */
+/* 最小窗口 980×640：此时侧边栏与播放栏的玻璃层叠会挤压内容，
+   收紧圆角与模糊半径，让材质在窄屏上依然成立而不显笨重。 */
+@media (max-width: 1100px) {
+  :root {
+    --blur-2: 18px;
+    --blur-3: 22px;
+    --radius-lg: 10px;
+  }
+  .grid-cards {
+    grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+    gap: 16px 14px;
+  }
+  .content-scroll { padding: 18px 20px 26px; }
+}

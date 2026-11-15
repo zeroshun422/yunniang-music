@@ -231,7 +231,8 @@ export function PlaylistDetailPage() {
                     style={{
                       padding: '1px 8px',
                       borderRadius: 10,
-                      background: 'var(--bg-2)',
+                      background: 'var(--bg-hover)',
+                      border: '1px solid var(--border)',
                       color: 'var(--text-2)',
                     }}
                   >

@@ -57,7 +57,7 @@ export function SettingsPage() {
       <section className="mb-24">
         <div className="section-title">账号</div>
         {user ? (
-          <div className="row" style={{ gap: 14, padding: '14px 16px', background: 'var(--bg-2)', borderRadius: 10 }}>
+          <div className="row panel" style={{ gap: 14, padding: '14px 16px' }}>
             <img src={coverUrl(user.avatarUrl, 100)} alt=""
               style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', background: 'var(--bg-3)' }} />
             <div className="grow">
@@ -91,9 +91,10 @@ export function SettingsPage() {
                 onClick={() => setQuality(q.level as QualityLevel)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
-                  padding: '11px 15px', borderRadius: 9,
-                  background: active ? 'var(--accent-soft)' : 'var(--bg-2)',
-                  border: `1px solid ${active ? 'var(--accent)' : 'transparent'}`,
+                  padding: '11px 15px', borderRadius: 10,
+                  background: active ? 'var(--accent-soft)' : 'var(--glass-2)',
+                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                  boxShadow: active ? '0 0 0 3px var(--accent-soft)' : undefined,
                 }}
               >
                 <div style={{
@@ -124,7 +125,7 @@ export function SettingsPage() {
         </div>
 
         {probe && (
-          <div className="mt-12" style={{ background: 'var(--bg-2)', borderRadius: 9, padding: '10px 14px' }}>
+          <div className="mt-12 panel-inset" style={{ padding: '10px 14px' }}>
             {probe.map((p: any) => (
               <div key={p.requested} className="row-between" style={{ padding: '5px 0', fontSize: 12.5 }}>
                 <span>请求「{levelToLabel(p.requested)}」</span>
@@ -142,7 +143,7 @@ export function SettingsPage() {
       {/* 存储 */}
       <section className="mb-24">
         <div className="section-title">本地存储</div>
-        <div style={{ background: 'var(--bg-2)', borderRadius: 10, padding: '14px 16px', display: 'grid', gap: 14 }}>
+        <div className="panel" style={{ padding: '14px 16px', display: 'grid', gap: 14 }}>
           <div>
             <div className="small muted mb-12" style={{ marginBottom: 5 }}>下载目录（无损音乐会保存在这里）</div>
             <div className="row" style={{ gap: 10 }}>
@@ -165,7 +166,7 @@ export function SettingsPage() {
       {/* 软件更新 */}
       <section className="mb-24">
         <div className="section-title">软件更新</div>
-        <div style={{ background: 'var(--bg-2)', borderRadius: 10, padding: '14px 16px' }}>
+        <div className="panel" style={{ padding: '14px 16px' }}>
           <div className="row-between" style={{ padding: '4px 0', fontSize: 12.5 }}>
             <span className="muted">当前版本</span>
             <span>v{updateInfo?.currentVersion || cfg?.version || '—'}</span>
@@ -250,7 +251,7 @@ export function SettingsPage() {
 
       <section>
         <div className="section-title">关于</div>
-        <div style={{ background: 'var(--bg-2)', borderRadius: 10, padding: '14px 16px' }}>
+        <div className="panel" style={{ padding: '14px 16px' }}>
           <div className="row-between" style={{ padding: '4px 0', fontSize: 12.5 }}>
             <span className="muted">云娘音乐</span><span>v{cfg?.version || '1.0.0'}</span>
           </div>

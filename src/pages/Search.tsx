@@ -427,11 +427,9 @@ export function SearchPage() {
               {items.map((u) => (
                 <div
                   key={u.userId}
-                  className="row"
+                  className="row panel panel-clickable"
                   style={{
                     padding: '8px 12px',
-                    borderRadius: 'var(--radius)',
-                    background: 'var(--bg-1)',
                   }}
                 >
                   <img
@@ -471,11 +469,9 @@ export function SearchPage() {
                 return (
                   <div
                     key={m.id}
-                    className="row"
+                    className="row panel panel-clickable"
                     style={{
                       padding: '8px 12px',
-                      borderRadius: 'var(--radius)',
-                      background: 'var(--bg-1)',
                     }}
                   >
                     <img

@@ -207,7 +207,13 @@ export function RankPage() {
                   padding: '7px 9px',
                   borderRadius: 'var(--radius)',
                   cursor: 'pointer',
-                  background: on ? 'var(--bg-2)' : 'transparent',
+                  background: on ? 'var(--glass-3)' : 'transparent',
+                  // 选中态在玻璃上不能只靠底色差异（半透明底几乎看不出来），
+                  // 补一条左侧品牌色标记 + 描边，层级立刻成立
+                  boxShadow: on
+                    ? 'inset 3px 0 0 0 var(--accent), var(--glass-inner-highlight)'
+                    : undefined,
+                  border: '1px solid ' + (on ? 'var(--border-light)' : 'transparent'),
                   transition: '0.14s',
                 }}
               >

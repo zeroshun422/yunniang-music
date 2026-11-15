@@ -90,7 +90,7 @@ function HeartRow({
         e.preventDefault()
         onMenu(e)
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-2)')}
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
       style={{
         height: 58,
@@ -511,21 +511,19 @@ export function HeartModePage() {
       {!searching && searchResults.length > 0 && (
         <div
           style={{
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
             padding: 6,
             marginBottom: 18,
             maxHeight: 320,
             overflowY: 'auto',
-            background: 'var(--bg-1)',
           }}
+          className="panel"
         >
           {searchResults.map((s) => (
             <div
               key={s.id}
               className="row"
               onClick={() => chooseSeed(s)}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-2)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               style={{ height: 46, padding: '0 10px', borderRadius: 6, gap: 12, cursor: 'pointer' }}
             >
@@ -561,13 +559,10 @@ export function HeartModePage() {
       {/* 已选种子 */}
       {seed && (
         <div
-          className="row"
+          className="row panel"
           style={{
             gap: 14,
             padding: '11px 14px',
-            borderRadius: 'var(--radius)',
-            background: 'var(--bg-2)',
-            border: '1px solid var(--border-light)',
             marginBottom: 22,
           }}
         >

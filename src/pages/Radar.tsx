@@ -150,10 +150,8 @@ export function RadarPage() {
           alignItems: 'flex-start',
           marginBottom: 24,
           padding: 16,
-          borderRadius: 'var(--radius-lg)',
-          background: 'var(--bg-1)',
-          border: '1px solid var(--border)',
         }}
+        className="panel"
       >
         <div style={{ position: 'relative', flex: '0 0 auto' }}>
           <img
