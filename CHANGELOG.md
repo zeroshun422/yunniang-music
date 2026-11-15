@@ -2,6 +2,16 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：修复 bug 升 PATCH，新增功能升 MINOR，重大变更升 MAJOR。
 
+## [1.6.1] - 2026-11-16
+
+文档与截图同步，无代码改动。
+
+- 新增 `docs/DESIGN-GLASS.md`：Liquid Glass 设计基线（玻璃层级、取色方式、
+  模糊半径、圆角、阴影），以及三个必须避开的坑（`backdrop-filter` 包含块、
+  `--bg-hover` 不能当填充色、禁用态不能只降 opacity）
+- README 补充 Liquid Glass 说明、3 条相关设计决策与「视觉回归」小节
+- `docs/screenshots/*` 全部替换为新界面截图（13 张浅色 + 登录页）
+
 ## [1.6.0] - 2026-11-16
 
 > 本次为**纯视觉层改造**：不新增、不删减任何业务功能，所有交互流程与状态管理未变。

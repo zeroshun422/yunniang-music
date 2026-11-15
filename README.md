@@ -11,6 +11,10 @@
 > 因为网易云音乐官方从未提供 Linux 安装包，第三方客户端又往往功能残缺或体验粗糙，
 > 所以本项目从零实现了一个完整可用的 Linux 原生客户端。
 
+> 界面采用 **Apple Liquid Glass** 风格：半透明层叠、背景模糊、双层棱边与内高光。
+> 主窗口保持不透明，被模糊的是应用自绘的环境光层，因此 X11/Wayland 下行为一致。
+> 设计基线与改动须知见 [docs/DESIGN-GLASS.md](docs/DESIGN-GLASS.md)。
+
 ![登录界面](docs/screenshots/login.png)
 
 <table>
@@ -171,6 +175,24 @@ yunniang-music/
 | Cookie **AES-256-GCM** 加密 | 密钥由 `userData + HOME + hostname` 派生，明文不落盘 |
 | 音频经**本地代理**转发 | 网易云音频有 Referer 防盗链，直接 `<audio src>` 会 403；代理同时负责音质解析与降级检测 |
 | API 打包进 **asar 内** | 放在 `extraResources` 会导致 `require('express')` 找不到依赖 |
+| 玻璃模糊由 **`::before` 伪元素**承载 | `backdrop-filter` 会让元素成为 `position: fixed` 后代的包含块；播放栏内的队列/歌词抽屉会因此被裁进 78px 高的栏内 |
+| 环境光层用**应用自绘渐变** | 主窗口写 `transparent: true` 才能透出桌面壁纸，但会引入拖影与黑底风险；自绘可见光层在 X11/Wayland 下行为确定 |
+| 控件底色用独立的 `--control-fill` | `--bg-hover/-active` 已改为半透明叠加（用于 hover），拿它们当按钮/输入框底色会与背后玻璃混出灰雾 |
+
+### 视觉回归
+
+界面改动后至少跑一遍，确保玻璃层没有回退：
+
+```bash
+node_modules/.bin/electron scripts/shot-themes.js   # 14 路由 × 明暗两套 = 28 张截图
+node_modules/.bin/electron scripts/check-glass.js   # 14 项交互断言
+```
+
+`check-glass.js` 覆盖：抽屉贴视口右侧（防包含块回归）、抽屉推挤主内容区 400px、
+菜单置顶可点、主题过渡期间玻璃不闪、主要文本对比度达标。
+
+> ⚠️ 该脚本必须用 `show: true` 的可见窗口运行。隐藏窗口会冻结 CSS 动画与过渡，
+> 会把「定位正确」误判成「越界 12px」。
 
 ---
 
