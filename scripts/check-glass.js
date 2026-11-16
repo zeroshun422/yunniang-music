@@ -92,23 +92,31 @@ app.whenReady().then(async () => {
         backdrop: cs.backdropFilter || cs.webkitBackdropFilter,
         mainMarginRight: Math.round(mr),
         drawerW: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--drawer-w')),
+        // 播放栏改为悬浮条后，抽屉右侧与底部都要留出同样的 gap
+        barGap: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bar-gap')) || 0,
+        playerH: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--player-h')) || 0,
       }
     })()
   `)
 
   check('抽屉已渲染', drawer.found)
   if (drawer.found) {
-    // 核心断言：抽屉必须贴视口右缘。若 .player-bar 成了包含块，right 会变成 != vw
-    check('抽屉贴视口右侧（未被播放栏当包含块）',
-      Math.abs(drawer.right - drawer.vw) <= 1,
-      `right=${drawer.right} vw=${drawer.vw}`)
-    // 抽屉高度应约等于 vh - titlebar - playerbar
-    check('抽屉高度覆盖内容区（未被 78px 播放栏裁切）',
-      drawer.bottom - drawer.top > 400,
-      `h=${drawer.bottom - drawer.top}`)
-    check('主内容区被推挤（margin-right = 抽屉宽）',
-      Math.abs(drawer.mainMarginRight - drawer.drawerW) <= 1,
-      `margin=${drawer.mainMarginRight} drawerW=${drawer.drawerW}`)
+    // 核心断言：抽屉必须贴视口右缘「减去 bar-gap」。
+    // 播放栏悬浮化后，抽屉与悬浮条右缘对齐，所以期望值是 vw - gap，而不是 vw。
+    // 若 .player-bar 成了包含块，right 会明显偏离（此前实测偏差 20px+）。
+    check('抽屉右缘对齐悬浮条（未被播放栏当包含块）',
+      Math.abs(drawer.right - (drawer.vw - drawer.barGap)) <= 1,
+      `right=${drawer.right} 期望=${drawer.vw - drawer.barGap} (vw=${drawer.vw} gap=${drawer.barGap})`)
+    // 抽屉高度：应覆盖内容区，且底部停在悬浮播放栏上方
+    const expectedBottom = drawer.vh - (drawer.playerH + drawer.barGap * 2)
+    check('抽屉底部让开悬浮播放栏（未被裁切）',
+      Math.abs(drawer.bottom - expectedBottom) <= 2 && drawer.bottom - drawer.top > 400,
+      `bottom=${drawer.bottom} 期望=${expectedBottom} h=${drawer.bottom - drawer.top}`)
+    // 推挤量 = 抽屉宽 + gap（内容区让位给整个右侧区域）
+    const expectedMargin = drawer.drawerW + drawer.barGap
+    check('主内容区被推挤（margin-right = 抽屉宽 + gap）',
+      Math.abs(drawer.mainMarginRight - expectedMargin) <= 1,
+      `margin=${drawer.mainMarginRight} 期望=${expectedMargin}`)
     check('抽屉有背景模糊',
       /blur/.test(drawer.backdrop || ''),
       drawer.backdrop)
@@ -193,12 +201,23 @@ app.whenReady().then(async () => {
         animating: document.documentElement.hasAttribute('data-theme-animating'),
         theme: document.documentElement.getAttribute('data-theme'),
         barBackdrop: cs ? (cs.backdropFilter || cs.webkitBackdropFilter) : '',
+        // 播放栏已改为「静态磨砂底」来规避大面积 backdrop-filter 的掉帧问题，
+        // 所以过渡期间要校验的是「底色仍在且仍是半透明」，而不是模糊。
+        barBg: cs ? cs.backgroundColor : '',
       }
     })()
   `)
   check('过渡期间 data-theme-animating 已挂上', mid.animating, `theme=${mid.theme}`)
+  // 播放栏走静态磨砂底：过渡中不能变成纯色（要么有模糊，要么底色仍是半透明）
+  const midBgAlpha = (() => {
+    const m = /rgba?\(([^)]+)\)/.exec(mid.barBg || '')
+    if (!m) return 1
+    const p = m[1].split(',').map((x) => parseFloat(x))
+    return p.length === 4 ? p[3] : 1
+  })()
   check('过渡期间播放栏玻璃仍生效（未闪成纯色）',
-    /blur/.test(mid.barBackdrop || ''), mid.barBackdrop)
+    /blur/.test(mid.barBackdrop || '') || midBgAlpha < 0.99,
+    `backdrop=${mid.barBackdrop || '(none)'} bg=${mid.barBg} alpha=${midBgAlpha}`)
 
   await wait(1200)
   const after = await js(`
@@ -212,6 +231,48 @@ app.whenReady().then(async () => {
 
   await win.webContents.capturePage().then((img) =>
     fs.writeFileSync(path.join(OUT, 'light-after-toggle.png'), img.toPNG()))
+
+  // ---- 3.5 玻璃透明度滑块：缩放与上下限保护 ----
+  // 这个功能把 alpha 交给一个变量驱动，容易在改配色时被悄悄改坏
+  // （比如有人直接覆写 --glass-2 就会绕过 clamp）。
+  const alphaProbe = await js(`
+    (() => {
+      const root = document.documentElement
+      const read = () => {
+        const sb = document.querySelector('.sidebar')
+        return sb ? getComputedStyle(sb).backgroundColor : ''
+      }
+      const set = (v) => root.style.setProperty('--glass-scale', String(v))
+      const out = {}
+      set(1);   out.base = read()
+      set(0.5); out.half = read()
+      set(0.01); out.floor = read()     // 极低 -> 应被 clamp 下限
+      set(99);   out.ceil = read()      // 极高 -> 应被 clamp 上限
+      set(1);   out.restored = read()
+      // 清理，避免影响后续断言
+      root.style.removeProperty('--glass-scale')
+      return out
+    })()
+  `)
+  const alphaOf = (c) => {
+    const m = /rgba?\(([^)]+)\)/.exec(c || '')
+    if (!m) return null
+    const p = m[1].split(',').map((x) => parseFloat(x))
+    return p.length === 4 ? p[3] : 1
+  }
+  const aBase = alphaOf(alphaProbe.base)
+  const aHalf = alphaOf(alphaProbe.half)
+  const aFloor = alphaOf(alphaProbe.floor)
+  const aCeil = alphaOf(alphaProbe.ceil)
+  check('透明度变量生效（0.5 时 alpha 减半）',
+    aBase !== null && aHalf !== null && Math.abs(aHalf - aBase * 0.5) < 0.02,
+    `base=${aBase} half=${aHalf}`)
+  check('透明度有下限保护（不会透到 0）',
+    aFloor !== null && aFloor >= 0.1,
+    `floor=${aFloor}`)
+  check('透明度有上限保护（不会变成实体白）',
+    aCeil !== null && aCeil <= 0.95,
+    `ceil=${aCeil}`)
 
   // ---- 4. 明暗模式下的文本对比度抽样 ----
   const contrast = await js(`

@@ -21,6 +21,32 @@
 模糊半径：`--blur-1` 18px / `--blur-2` 24px / `--blur-3` 30px / `--blur-pop` 36px。
 饱和度一律 `--glass-saturate: 180%`。
 
+### 1.1.1 透明度可调（设置 → 外观）
+
+用户在设置里能用一个滑块整体调节玻璃透明度，范围 20%–180%（100% 为设计基准）。
+
+实现要点：**JS 只写一个数字，配色仍只有 CSS 一处真源**。
+
+```css
+:root {
+  --gab-2: 0.26;                              /* alpha 基准，永不被改写 */
+  --gmin-2: 0.10; --gmax-2: 0.36;             /* 该层级的上下限 */
+  --ga-2: clamp(var(--gmin-2),
+    calc(var(--gab-2) * var(--glass-scale)),  /* JS 内联写入 <html> */
+    var(--gmax-2));
+  --glass-2: rgb(var(--gc-2) / var(--ga-2));
+}
+```
+
+三个必须遵守的约束：
+
+1. **派生层必须定义在 `:root` 上**，与 JS 内联写 `--glass-scale` 的是同一个元素。
+   实测：这些 `calc` 若定义在子元素上，`--glass-scale` 的变化不会传播进去。
+2. **alpha 基准必须独立存在**（`--gab-*`）。若 JS 直接覆写 `--glass-2`，
+   就再也没有"原始值"可乘，滑块退化成绝对值，且层次关系无法恢复。
+3. **上下限按层级区分**。菜单/浮层必须有较高下限才压得住底下内容；
+   面板可以很透。统一下限会让菜单在低透明度下文字不可读。
+
 ### 1.2 取色方式
 
 **浅色**：白色叠层，靠透明度分层。底色 `--bg-0: #eceef4` 略偏冷，让白玻璃显出来。
@@ -49,6 +75,25 @@ box-shadow: var(--glass-inner-highlight), ...;        /* 内高光，inset 1px �
 | 抽屉 | 0（贴边推挤，圆角会露出缝） |
 
 内容区留白：`padding: 22px 26px 30px`；窄窗（≤1100px）降到 `18px 20px 26px`。
+
+### 1.3.1 连续曲率圆角（Squircle）
+
+播放栏、抽屉使用苹果风格的连续曲率圆角，不是普通圆弧：
+
+```css
+--bar-radius: 26px;
+--bar-corner-shape: squircle;
+
+.player-bar::before {
+  border-radius: var(--bar-radius);
+  corner-shape: var(--bar-corner-shape);  /* Chromium 139+ 原生 */
+}
+```
+
+- 本机 Electron 45 / Chrome 156 **原生支持**，无需 SVG 或 mask 模拟
+- 不支持时浏览器直接忽略该声明，自动退化为普通圆角 —— 这就是降级方案
+- 实测计算值为 `superellipse(2)`，与普通 `round` 在大半径下差异肉眼可辨
+- 还支持 `scoop` / `bevel` / `notch`，本项目只用 `squircle`
 
 ### 1.4 阴影
 
@@ -177,6 +222,45 @@ body::before { /* 四色径向渐变极光，z-index: -1 */ }
 禁用态要改成「中性实心底 + 弱化文字」，做成明确状态而不是模糊状态 ——
 `.btn.primary:disabled` 已单独处理。
 
+## 4.5 性能：大面积 `backdrop-filter` 会掉帧
+
+这是实测踩到的真实问题，不是理论担忧。
+
+**现象**：播放栏改成悬浮条后，模糊层从「78px 高的贴边横条」变成「1340×98 的悬浮块」，
+滚动列表时出现**稳定的隔帧丢帧** —— 帧序列交替 `16.7 / 33.3ms`，也就是掉到 30fps。
+（无 GPU 加速、最坏情况测得。）
+
+**排查结论**：
+
+| 尝试 | 结果 |
+|---|---|
+| 缩小模糊半径 14→8→4px | 无效，仍丢帧 |
+| `contain: paint` | 无效，反而更差 |
+| `content-visibility: auto` | 无效 |
+| `will-change: backdrop-filter` | 无效 |
+| 内容区提升为独立合成层 | 无效 |
+| 模糊层缩到 400px 宽 | **慢帧归零** |
+| 完全去掉 `backdrop-filter` | **慢帧归零** |
+
+即：**代价与模糊层面积成正比，与半径几乎无关**。
+
+**解法**：播放栏不再实时模糊，改用「静态磨砂底 + 顶部柔光」：
+
+```css
+.player-bar::before {
+  /* 不写 backdrop-filter */
+  background: var(--glass-bar-sheen), var(--glass-bar-solid);
+  border-radius: var(--bar-radius);
+  corner-shape: squircle;
+}
+```
+
+播放栏位于窗口最底部、下方没有易变内容，所以观感损失极小，换来滚动稳定满帧。
+它仍有独立的 alpha（`--gab-bar-solid`），会随透明度滑块一起变化。
+
+**给未来的提醒**：若还想给更大的面（如整个内容区）加实时模糊，
+先量一量面积代价。经验阈值：模糊层宽度超过约 600px 就应改用静态磨砂底。
+
 ## 5. 降级
 
 三层防线，改令牌即可，不需要动组件选择器：
@@ -200,7 +284,7 @@ npm test                                   # 101/101
 node_modules/.bin/electron scripts/visual-test.js      # 13 路由冒烟
 node_modules/.bin/electron scripts/shot-themes.js      # 14 路由 × 明暗 = 28 张
 node_modules/.bin/electron scripts/shot-login.js       # 登录页（折射最明显）
-node_modules/.bin/electron scripts/check-glass.js      # 15 项交互断言
+node_modules/.bin/electron scripts/check-glass.js      # 18 项交互断言
 node_modules/.bin/electron scripts/check-perf.js       # 帧时间（取中位数）
 ```
 

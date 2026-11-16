@@ -52,6 +52,20 @@
   --player-h: 78px;
   --titlebar-h: 38px;
 
+  /* =========================================================
+     悬浮播放栏几何
+     ---------------------------------------------------------
+     播放栏从「贴窗口底边的横条」改为「悬浮的圆润玻璃块」：
+       左右/底部留出 --bar-gap，整体高度 = 原高度 + 两个 gap。
+     圆角用 corner-shape: squircle 做连续曲率（Chromium 139+ 原生支持，
+     实测本机 Electron 45 / Chrome 156 支持；不支持时自动退化为普通圆角）。
+     ========================================================= */
+  --bar-gap: 10px;
+  /* 悬浮块自身圆角。38px 在 78px 高度上是 iOS 控件的典型比例 */
+  --bar-radius: 26px;
+  /* 圆角形态：连续曲率。降级时浏览器忽略该属性，自动退回 border-radius 的圆弧 */
+  --bar-corner-shape: squircle;
+
   --font: -apple-system, "Noto Sans CJK SC", "Source Han Sans SC",
     "PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
 
@@ -76,11 +90,67 @@
      原因：玻璃要"有东西可折射"。浅色底下若是接近白的面板叠在接近白的环境光上，
      厚壁高光再精致也看不出——透光率不足，材质就退化成一块白卡纸。
      这一档已实测：文字对比度仍达标（面板底色实际合成后约 #eef1f7）。 */
-  --glass-1: rgba(255, 255, 255, 0.34);   /* 侧边栏：大面积常驻，压低避免整片发白 */
-  --glass-2: rgba(255, 255, 255, 0.26);   /* 内容区卡片 / 面板：最透，露出极光 */
-  --glass-3: rgba(255, 255, 255, 0.46);   /* 抽屉（推挤式，层级更高） */
-  --glass-pop: rgba(255, 255, 255, 0.62); /* 菜单 / 弹层：要压住底下内容，最高 */
-  --glass-bar: rgba(255, 255, 255, 0.40); /* 标题栏 / 播放栏 */
+  /* =========================================================
+     玻璃颜色的「拆分式」定义（为透明度滑块服务）
+     ---------------------------------------------------------
+     颜色拆成三段，缺一不可：
+       --gc-*    颜色（无 alpha 的 RGB 三元组）
+       --gab-*   alpha 基准值（base，绝不被 JS 改写）
+       --gmin-* / --gmax-*  该层级的 alpha 上下限
+     再由 --glass-scale（JS 内联写到 <html>）乘以基准并 clamp。
+
+     为什么基准值必须独立存在：
+       若写成 --glass-2: rgba(...) 且 JS 直接覆写 --glass-2，
+       那就再也没有"原始值"可乘，滑块只能做成绝对值而非比例，
+       且用户拉到 0 之后再拉回也回不到原来的层次关系。
+
+     为什么 clamp 的上下限要按层级区分：
+       菜单/浮层必须足够不透明才能压住底下内容，面板可以很透。
+       统一下限会让菜单在极低透明度下文字不可读。
+     ========================================================= */
+  --gc-1: 255 255 255;
+  --gc-2: 255 255 255;
+  --gc-3: 255 255 255;
+  --gc-pop: 255 255 255;
+  --gc-bar: 255 255 255;
+
+  --gab-1: 0.34;   /* 侧边栏：大面积常驻，压低避免整片发白 */
+  --gab-2: 0.26;   /* 内容区卡片 / 面板：最透，露出极光 */
+  --gab-3: 0.46;   /* 抽屉（推挤式，层级更高） */
+  --gab-pop: 0.62; /* 菜单 / 弹层：要压住底下内容，最高 */
+  --gab-bar: 0.40; /* 标题栏 / 播放栏 */
+
+  /* 下限（保证任何透明度下都读得清）；上限（保证滑块拉满也不会变成实体白） */
+  --gmin-1: 0.14; --gmax-1: 0.42;
+  --gmin-2: 0.10; --gmax-2: 0.36;
+  --gmin-3: 0.24; --gmax-3: 0.60;
+  --gmin-pop: 0.34; --gmax-pop: 0.90;
+  --gmin-bar: 0.18; --gmax-bar: 0.52;
+
+  /* =========================================================
+     播放栏专用「静态磨砂底」
+     ---------------------------------------------------------
+     为什么播放栏不用实时 backdrop-filter：
+       实测（无 GPU 加速，最坏情况）播放栏悬浮后模糊层变成 1340x98，
+       每帧都要对整条采样后台层 → 出现稳定的「隔帧丢帧」
+       （帧序列交替 16.7 / 33.3ms，即 30fps 抖动）。
+       缩小模糊面积能消掉（400px 宽时慢帧归零），但播放栏必须全宽。
+       试过 contain:paint / content-visibility / will-change 均无效。
+
+     替代方案：不采样背后，直接铺一层接近"模糊后效果"的半透明底色。
+       播放栏下方通常没有易变内容（它是窗口最底部的独立区域），
+       所以观感损失极小，换来滚动稳定满帧。
+       底色本身仍受 --glass-scale 控制，会随透明度滑块变化。
+     ========================================================= */
+  --gab-bar-solid: 0.90;
+  --gmin-bar-solid: 0.62; --gmax-bar-solid: 0.97;
+  /* 顶部柔光：模拟光线从播放栏上沿渗出的高光 */
+  --glass-bar-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.12) 42%,
+    rgba(255, 255, 255, 0) 100%
+  );
 
   /* 模糊半径：层级越高模糊越强（px）
      ---------------------------------------------------------
@@ -251,11 +321,34 @@
      深色玻璃的白不是「加白」，而是「提亮」：透明度更低（0.05-0.12），
      否则整块变成灰雾，深色的通透感立刻消失。
      内高光也压到 0.10，深色下 1px 白线过于抢眼。 */
-  --glass-1: rgba(30, 30, 44, 0.58);
-  --glass-2: rgba(34, 34, 50, 0.52);
-  --glass-3: rgba(38, 38, 54, 0.64);
-  --glass-pop: rgba(40, 40, 58, 0.76);
-  --glass-bar: rgba(30, 30, 44, 0.62);
+  /* 深色同样拆分。注意深色的"更透"意味着颜色更接近透明，
+     但底色本身是深色，所以下限要比浅色高一些，否则文字对比度会崩。 */
+  --gc-1: 30 30 44;
+  --gc-2: 34 34 50;
+  --gc-3: 38 38 54;
+  --gc-pop: 40 40 58;
+  --gc-bar: 30 30 44;
+
+  --gab-1: 0.58;
+  --gab-2: 0.52;
+  --gab-3: 0.64;
+  --gab-pop: 0.76;
+  --gab-bar: 0.62;
+
+  --gmin-1: 0.30; --gmax-1: 0.72;
+  --gmin-2: 0.26; --gmax-2: 0.68;
+  --gmin-3: 0.38; --gmax-3: 0.84;
+  --gmin-pop: 0.52; --gmax-pop: 0.96;
+  --gmin-bar: 0.34; --gmax-bar: 0.80;
+  --gab-bar-solid: 0.88;
+  --gmin-bar-solid: 0.58; --gmax-bar-solid: 0.96;
+  /* 深色的顶部柔光要弱得多，否则播放栏顶上会亮出一条白边 */
+  --glass-bar-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.03) 42%,
+    rgba(255, 255, 255, 0) 100%
+  );
 
   --glass-edge: rgba(255, 255, 255, 0.16);
   --glass-edge-outer: rgba(0, 0, 0, 0.30);
@@ -324,6 +417,35 @@
   --hero-scrim: rgba(22, 22, 31, 0.92);
   --tag-mv: #6a9cf5;
   --cover-border: 1px solid transparent;
+}
+
+/* =========================================================
+   玻璃透明度派生层
+   ---------------------------------------------------------
+   必须定义在 :root 上（与 JS 内联写 --glass-scale 同一个元素）。
+   实测：若把这些 calc 定义在子元素上，--glass-scale 的变化
+   不会传播进去（变量在子元素上一次性求值后就固化了）。
+
+   --glass-scale 语义：1 = 设计基准，<1 更通透，>1 更实。
+   由「设置 → 外观 → 玻璃透明度」驱动，持久化在 localStorage。
+   ========================================================= */
+:root {
+  --glass-scale: 1;
+
+  --ga-1: clamp(var(--gmin-1), calc(var(--gab-1) * var(--glass-scale)), var(--gmax-1));
+  --ga-2: clamp(var(--gmin-2), calc(var(--gab-2) * var(--glass-scale)), var(--gmax-2));
+  --ga-3: clamp(var(--gmin-3), calc(var(--gab-3) * var(--glass-scale)), var(--gmax-3));
+  --ga-pop: clamp(var(--gmin-pop), calc(var(--gab-pop) * var(--glass-scale)), var(--gmax-pop));
+  --ga-bar: clamp(var(--gmin-bar), calc(var(--gab-bar) * var(--glass-scale)), var(--gmax-bar));
+
+  --glass-1: rgb(var(--gc-1) / var(--ga-1));
+  --glass-2: rgb(var(--gc-2) / var(--ga-2));
+  --glass-3: rgb(var(--gc-3) / var(--ga-3));
+  --glass-pop: rgb(var(--gc-pop) / var(--ga-pop));
+  --glass-bar: rgb(var(--gc-bar) / var(--ga-bar));
+  --ga-bar-solid: clamp(var(--gmin-bar-solid),
+    calc(var(--gab-bar-solid) * var(--glass-scale)), var(--gmax-bar-solid));
+  --glass-bar-solid: rgb(var(--gc-bar) / var(--ga-bar-solid));
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1047,15 +1169,22 @@ ebar-nav { display: flex; gap: 4px; }
    正是渲染在 .player-bar 内部 —— 一旦成为包含块，抽屉会从「贴视口右侧」
    退化成「贴播放栏内部」，直接被 78px 高的播放栏裁掉。
    ::before 是它的孩子而非祖先，不影响包含块判定，视觉结果完全一致。 */
+/* 播放栏：悬浮玻璃条
+   ---------------------------------------------------------
+   外层 .player-bar 只负责「定位 + 尺寸」，绝不挂 backdrop-filter ——
+   它内部渲染着队列/歌词抽屉（position: fixed），filter 会让它成为
+   包含块，抽屉会立刻错位（这是本项目已踩过两次的坑）。
+   模糊与圆角全部交给 ::before，伪元素不影响包含块判定。 */
 .player-bar {
-  height: var(--player-h);
+  height: calc(var(--player-h) + var(--bar-gap) * 2);
   flex-shrink: 0;
   background: transparent;
-  border-top: 1px solid var(--glass-edge-outer);
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 0 18px;
+  padding: 0 26px;
+  margin: var(--bar-gap);
+  margin-top: 0;
   gap: 16px;
   position: relative;
   z-index: 20;
@@ -1067,10 +1196,21 @@ ebar-nav { display: flex; gap: 4px; }
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: var(--glass-bar);
-  -webkit-backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
-  box-shadow: var(--glass-bevel);
+  /* ⚠️ 这里刻意**不用** backdrop-filter。
+     播放栏悬浮后模糊层达 1340×98，实测在无 GPU 加速下会产生稳定的
+     「隔帧丢帧」（帧序列交替 16.7/33.3ms，即掉到 30fps）。
+     缩小模糊面积可消（400px 宽时归零），但播放栏必须全宽。
+     改用一块「接近模糊效果」的静态磨砂底 + 顶部柔光，
+     播放栏下方无易变内容，观感损失极小，换取滚动稳定满帧。
+     详见 DESIGN-GLASS.md「性能」一节。 */
+  background:
+    var(--glass-bar-sheen),
+    var(--glass-bar-solid);
+  border: 1px solid var(--glass-edge-outer);
+  border-radius: var(--bar-radius);
+  /* 连续曲率圆角。不支持时浏览器忽略此声明，退化为普通圆角 */
+  corner-shape: var(--bar-corner-shape);
+  box-shadow: var(--glass-bevel), var(--glass-shadow-1);
 }
 
 .pb-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -1191,7 +1331,10 @@ ebar-nav { display: flex; gap: 4px; }
   appearance: none;
   height: 4px;
   border-radius: 2px;
+  /* 轨道需要"凹槽"感：实心底 + 一圈内阴影，
+     否则在已经很透的玻璃上，浅灰轨道几乎看不见（实测对比不足） */
   background: var(--control-fill-active);
+  box-shadow: inset 0 1px 2px rgba(20, 22, 28, 0.28);
   cursor: pointer;
   outline: none;
   flex: 1;
@@ -1649,7 +1792,8 @@ body.desktop-lyric-body {
    ⚠️ 这条规则必须保留：它让抽屉「推挤」主内容而不是盖住内容。
    改造玻璃时曾因同块编辑误删，注意别再动它。 */
 .app-body.drawer-open .main-area {
-  margin-right: var(--drawer-w);
+  /* 抽屉宽 + 播放栏右侧 gap，避免内容被抽屉边缘压住 */
+  margin-right: calc(var(--drawer-w) + var(--bar-gap));
 }
 
 /* 抽屉是「高一级的玻璃」：比内容面板更不透明，因为它推挤内容而非叠加，
@@ -1657,14 +1801,18 @@ body.desktop-lyric-body {
 .side-drawer {
   position: fixed;
   top: var(--titlebar-h);
-  right: 0;
-  bottom: var(--player-h);
+  /* 右侧留出与播放栏一致的 gap，视觉上与悬浮条对齐 */
+  right: var(--bar-gap);
+  /* 底部让开整个悬浮播放栏（原高度 + 上下两个 gap），否则会与圆角条重叠 */
+  bottom: calc(var(--player-h) + var(--bar-gap) * 2);
   width: var(--drawer-w);
   max-width: 100vw;
   background: var(--glass-3);
   -webkit-backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
-  border-left: 1px solid var(--glass-edge-outer);
+  border: 1px solid var(--glass-edge-outer);
+  border-radius: var(--bar-radius);
+  corner-shape: var(--bar-corner-shape);
   box-shadow: var(--glass-bevel), var(--glass-shadow-2);
   display: flex;
   flex-direction: column;
@@ -1780,6 +1928,8 @@ body.desktop-lyric-body {
     --glass-3: #ffffff;
     --glass-pop: #ffffff;
     --glass-bar: #ffffff;
+    --glass-bar-solid: #ffffff;
+    --glass-bar-sheen: none;
     --bg-1: #ffffff;
     --bg-2: #f0f1f4;
     --bg-hover: #e9ebf0;
@@ -1799,6 +1949,7 @@ body.desktop-lyric-body {
     --glass-3: #16161f;
     --glass-pop: #1d1d28;
     --glass-bar: #101018;
+    --glass-bar-solid: #101018;
     --bg-1: #101018;
     --bg-2: #16161f;
     --bg-hover: #23232f;
@@ -1836,8 +1987,12 @@ body.desktop-lyric-body {
     --glass-3: #ffffff;
     --glass-pop: #ffffff;
     --glass-bar: #ffffff;
+    /* 播放栏用的是 --glass-bar-solid（静态磨砂底），必须一并转实心，
+       否则减少透明度模式下它仍是半透明，与其他区块不一致 */
+    --glass-bar-solid: #ffffff;
     --aurora-opacity: 0;
     --glass-sheen: none;
+    --glass-bar-sheen: none;
     --glass-bevel: none;
     --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0);
   }
@@ -1847,6 +2002,7 @@ body.desktop-lyric-body {
     --glass-3: #16161f;
     --glass-pop: #1d1d28;
     --glass-bar: #101018;
+    --glass-bar-solid: #101018;
   }
   .glass,
   .titlebar,

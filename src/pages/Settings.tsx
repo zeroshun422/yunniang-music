@@ -6,6 +6,7 @@ import type { QualityLevel } from '@/types'
 import { coverUrl } from '@/api/ncm'
 import { IconFolder, IconDownload } from '@/components/Icons'
 import { useUpdate, describeUpdate } from '@/store/update'
+import { useTheme, GLASS_ALPHA_MIN, GLASS_ALPHA_MAX } from '@/store/theme'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
@@ -14,6 +15,9 @@ export function SettingsPage() {
   const [platform, setPlatform] = useState<any>(null)
   const [probe, setProbe] = useState<any>(null)
   const [probing, setProbing] = useState(false)
+
+  const glassAlpha = useTheme((s) => s.glassAlpha)
+  const setGlassAlpha = useTheme((s) => s.setGlassAlpha)
 
   const updateStatus = useUpdate((s) => s.status)
   const updateInfo = useUpdate((s) => s.info)
@@ -138,6 +142,45 @@ export function SettingsPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* 外观 */}
+      <section className="mb-24">
+        <div className="section-title">外观</div>
+        <div className="panel" style={{ padding: '14px 16px' }}>
+          <div className="row-between" style={{ marginBottom: 4 }}>
+            <span style={{ fontSize: 13 }}>玻璃透明度</span>
+            <span className="small muted" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {Math.round(glassAlpha * 100)}%
+            </span>
+          </div>
+          <div className="small muted" style={{ marginBottom: 10, lineHeight: 1.7 }}>
+            调节侧边栏、面板、抽屉、菜单与播放栏的透明度。往左更通透、能看见背景光晕；
+            往右更实、文字对比更强。两端均已限制，不会因过透而导致文字读不清。
+          </div>
+          <input
+            className="slider"
+            type="range"
+            min={GLASS_ALPHA_MIN * 100}
+            max={GLASS_ALPHA_MAX * 100}
+            step={1}
+            value={Math.round(glassAlpha * 100)}
+            onChange={(e) => setGlassAlpha(Number(e.target.value) / 100)}
+            aria-label="玻璃透明度"
+            title={`${Math.round(glassAlpha * 100)}%`}
+          />
+          <div className="row-between small muted" style={{ marginTop: 6 }}>
+            <span>更通透 ←→ 更实</span>
+            <button
+              className="btn sm ghost"
+              onClick={() => setGlassAlpha(1)}
+              disabled={glassAlpha === 1}
+              title="恢复默认透明度（100%）"
+            >
+              恢复默认
+            </button>
+          </div>
+        </div>
       </section>
 
       {/* 存储 */}
