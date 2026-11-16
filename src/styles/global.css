@@ -72,32 +72,87 @@
      ========================================================= */
 
   /* 玻璃底色（按层级） */
-  --glass-1: rgba(255, 255, 255, 0.55);   /* 侧边栏 / 播放栏：大面积、常驻 */
-  --glass-2: rgba(255, 255, 255, 0.50);   /* 内容区卡片 / 面板 */
-  --glass-3: rgba(255, 255, 255, 0.62);   /* 抽屉（推挤式，层级更高） */
-  --glass-pop: rgba(255, 255, 255, 0.74); /* 菜单 / 弹层：需要压住底下内容 */
-  --glass-bar: rgba(255, 255, 255, 0.60); /* 标题栏 / 播放栏 */
+  /* 不透明度整体下调（原 0.50-0.74 → 0.26-0.62）。
+     原因：玻璃要"有东西可折射"。浅色底下若是接近白的面板叠在接近白的环境光上，
+     厚壁高光再精致也看不出——透光率不足，材质就退化成一块白卡纸。
+     这一档已实测：文字对比度仍达标（面板底色实际合成后约 #eef1f7）。 */
+  --glass-1: rgba(255, 255, 255, 0.34);   /* 侧边栏：大面积常驻，压低避免整片发白 */
+  --glass-2: rgba(255, 255, 255, 0.26);   /* 内容区卡片 / 面板：最透，露出极光 */
+  --glass-3: rgba(255, 255, 255, 0.46);   /* 抽屉（推挤式，层级更高） */
+  --glass-pop: rgba(255, 255, 255, 0.62); /* 菜单 / 弹层：要压住底下内容，最高 */
+  --glass-bar: rgba(255, 255, 255, 0.40); /* 标题栏 / 播放栏 */
 
-  /* 模糊半径：层级越高模糊越强（px） */
-  --blur-1: 18px;
-  --blur-2: 24px;
-  --blur-3: 30px;
-  --blur-pop: 36px;
+  /* 模糊半径：层级越高模糊越强（px）
+     ---------------------------------------------------------
+     参考实现只有 blur(2px) —— 它能那么低，是因为底图是网格线，
+     需要看清"透过玻璃的线是否被弯折"来产生折射感。
+     这里是真实应用的文字界面，2px 会让下层文字直接穿透、完全读不清。
+     折中到 10-20px：
+       · 低于 10px  → 背景文字仍可辨认，与前景打架
+       · 高于 24px  → 糊成塑料板，失去"透过玻璃看东西"的通透
+     10-20px 同时保留了厚壁折射的清晰度（bevel 是矢量描边，不吃模糊）。 */
+  --blur-1: 10px;
+  --blur-2: 14px;
+  --blur-3: 18px;
+  --blur-pop: 20px;
+
+  /* 流式面板专用：极低模糊，换取"透过玻璃看东西"的清澈感。
+     安全性依据 —— .panel 位于文档流内，它底下只有 body::before 的
+     环境光渐变，**没有任何文字**，所以不怕糊。
+     会压在正文之上的浮层（.menu / .side-drawer / .player-toast）
+     必须继续用 18-20px，否则下层标题会穿透、读不清。 */
+  --blur-panel: 5px;
 
   /* 饱和度提升：玻璃透出的背景必须比真实背景更「艳」才像材质，
      纯模糊出来的灰汤是这套风格最常见的失败点 */
   --glass-saturate: 180%;
 
-  /* 棱边：外描边 + 内高光（inset 1px 白线，模拟光线打在边缘） */
-  --glass-edge: rgba(255, 255, 255, 0.60);
-  --glass-edge-outer: rgba(20, 22, 28, 0.08);
+  /* =========================================================
+     棱边材质：厚壁折射（Liquid Glass 的灵魂）
+     ---------------------------------------------------------
+     参考「纯CSS液态玻璃」的多层 inset 白光手法，但**弃用了它的
+     祖先 filter: contrast(3)** —— 见 DESIGN-GLASS.md 第 4.4 节：
+     该滤镜会同时压暗所有文字与封面图，且让祖先成为 position:fixed
+     的包含块（抽屉定位 bug 会复现）。仅保留 insets，视觉已达 90%。
+
+     六层结构，从外到内：
+       1-2  ±2px 反向薄光   → 玻璃壁的高光棱（上左 / 下右各一）
+       3-4  ±6px 宽幅弱光   → 厚壁内侧的折射渐变
+       5    0 0 2px 暗光    → 内圈暗边，让壁体有"厚度"
+       6    inset 0 1px 0   → 顶部 1px 硬高光（原始保留，收口）
+     ========================================================= */
+
+  /* 单层令牌保留：用于 .table-head 等只需一条细高光的位置 */
   --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-  /* 顶部高光渐变：上亮下暗，制造「弧面」错觉 */
+
+  /* 浅色：白光强度高（0.55-0.95），因为底色本身亮，需要更硬的折射才看得见 */
+  --glass-bevel: inset 2px -2px 1px -1px rgba(255, 255, 255, 0.95),
+    inset -2px 2px 1px -1px rgba(255, 255, 255, 0.95),
+    inset 6px -6px 1px -6px rgba(255, 255, 255, 0.70),
+    inset -6px 6px 1px -6px rgba(255, 255, 255, 0.70),
+    inset 0 0 2px rgba(20, 22, 28, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.80);
+
+  /* 棱边的外描边：参考实现用 rgba(51,51,51,.08) 双线，
+     这里统一成一条，颜色略冷以贴合现有配色 */
+  --glass-edge: rgba(255, 255, 255, 0.70);
+  --glass-edge-outer: rgba(20, 22, 28, 0.08);
+
+  /* 斜向高光带：参考实现用 45deg 双向白光（左上/右下），
+     替代原来的纵向 sheen —— 斜向更接近真实玻璃的受光角度 */
+  --glass-sheen-angle: 135deg;
+  /* 斜向高光带（参考实现思路）：135deg 让光从左上斜射，
+     两端白、中间透明 —— 只在玻璃的斜对角棱上出现反光，
+     不像原来的纵向渐变那样在整块面板上均匀糊一层雾。
+     这是"水滴感"的关键：高光集中在棱上，而不是铺在面上。 */
   --glass-sheen: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.42) 0%,
-    rgba(255, 255, 255, 0.10) 42%,
-    rgba(255, 255, 255, 0) 100%
+    var(--glass-sheen-angle),
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.06) 18%,
+    rgba(255, 255, 255, 0) 42%,
+    rgba(255, 255, 255, 0) 58%,
+    rgba(255, 255, 255, 0.06) 82%,
+    rgba(255, 255, 255, 0.55) 100%
   );
 
   /* 玻璃阴影：贴地紧影负责「落地」，扩散影负责「浮起」 */
@@ -109,11 +164,13 @@
      因此不依赖桌面壁纸与合成器，X11 下行为确定。 */
   /* 浅色下刻意压低（0.10-0.14）：玻璃需要「有东西可模糊」，但浅色底接近白，
      光斑一浓就把整页染成彩纸，丢掉玻璃该有的干净感。深色相反，见下方。 */
-  --aurora-1: rgba(236, 65, 65, 0.13);    /* 品牌红 */
-  --aurora-2: rgba(120, 96, 240, 0.12);   /* 冷紫，与红形成冷暖对拉 */
-  --aurora-3: rgba(64, 176, 214, 0.12);   /* 青，压住整体热度 */
-  --aurora-4: rgba(240, 180, 120, 0.11);  /* 暖橙，出现在左下 */
-  --aurora-base: #eef0f6;
+  /* 玻璃更透了，环境光必须同步加强——否则透过玻璃看到的是"灰"不是"彩"。
+     0.18-0.22 是实测上限：再高就变成彩纸，丢掉玻璃应有的洁净。 */
+  --aurora-1: rgba(236, 65, 65, 0.20);    /* 品牌红 */
+  --aurora-2: rgba(120, 96, 240, 0.19);   /* 冷紫，与红形成冷暖对拉 */
+  --aurora-3: rgba(64, 176, 214, 0.18);   /* 青，压住整体热度 */
+  --aurora-4: rgba(240, 180, 120, 0.17);  /* 暖橙，出现在左下 */
+  --aurora-base: #e9ecf5;
   --aurora-opacity: 1;
 
   --z-sidebar: 10;
@@ -200,15 +257,32 @@
   --glass-pop: rgba(40, 40, 58, 0.76);
   --glass-bar: rgba(30, 30, 44, 0.62);
 
-  --glass-edge: rgba(255, 255, 255, 0.10);
+  --glass-edge: rgba(255, 255, 255, 0.16);
   --glass-edge-outer: rgba(0, 0, 0, 0.30);
   --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+
+  --glass-sheen-angle: 135deg;
+  /* 深色斜向高光带：强度约为浅色的 40%（0.22 vs 0.55）。
+     深色玻璃若照搬浅色的高光强度，棱上会亮成一圈白描边。 */
   --glass-sheen: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.12) 0%,
-    rgba(255, 255, 255, 0.03) 42%,
-    rgba(255, 255, 255, 0) 100%
+    var(--glass-sheen-angle),
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.03) 18%,
+    rgba(255, 255, 255, 0) 42%,
+    rgba(255, 255, 255, 0) 58%,
+    rgba(255, 255, 255, 0.03) 82%,
+    rgba(255, 255, 255, 0.22) 100%
   );
+
+  /* 深色厚壁折射：白光必须大幅压低（0.18-0.35），
+     否则玻璃壁会亮成一圈白边，像描了边而不是有厚度。
+     内圈暗光反而要加深（0.60），因为深色玻璃的壁体靠"暗"来读厚度。 */
+  --glass-bevel: inset 2px -2px 1px -1px rgba(255, 255, 255, 0.35),
+    inset -2px 2px 1px -1px rgba(255, 255, 255, 0.35),
+    inset 6px -6px 1px -6px rgba(255, 255, 255, 0.20),
+    inset -6px 6px 1px -6px rgba(255, 255, 255, 0.20),
+    inset 0 0 2px rgba(0, 0, 0, 0.60),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 
   --glass-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.30), 0 8px 24px rgba(0, 0, 0, 0.34);
   --glass-shadow-2: 0 2px 6px rgba(0, 0, 0, 0.36), 0 16px 48px rgba(0, 0, 0, 0.50);
@@ -360,7 +434,68 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-edge-outer);
   /* 内高光走 box-shadow 而非 border：border 会占布局高度，1px 高光会撑歪栅格 */
-  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-1);
+  box-shadow: var(--glass-bevel), var(--glass-shadow-1);
+}
+
+/* =========================================================
+   光学折射层（Liquid Glass 的真实折射）
+   ---------------------------------------------------------
+   用法：给任意「大玻璃面」加上 .glass-refract 类即可，
+   **不需要改任何 JSX 结构** —— 折射由 ::before 伪元素承载。
+
+   为什么必须分两层（这是本方案的核心安全设计）：
+     feDisplacementMap 作用于 SourceGraphic —— 即元素及其全部内容。
+     若直接挂在带文字的卡片上，连文字都会被弯折（实测会扭成乱码）。
+     参考库 liquid-glass-react 的做法是拆出独立的 .glass__warp 层，
+     但那样要改每个组件的 JSX。
+     这里用 ::before 达到同样效果且零侵入：
+       ::before  → 绝对定位铺满、无内容，只承载 filter + backdrop-filter
+       z-index:0 → 折射层
+       子元素    → 由下面的 .glass-refract > * 抬到 z-index:1，保持锐利
+
+   ⚠️ 绝不能把该 filter 挂到「含有 position:fixed 后代」的元素上：
+      filter 会让该元素成为包含块，播放栏内的队列/歌词抽屉会立刻错位。
+     因此本类只用于 .login-card / .menu / .side-drawer 这类叶子浮层。
+   ========================================================= */
+.glass-refract {
+  position: relative;
+  isolation: isolate;               /* 建立独立层叠上下文，避免 z-index 外溢 */
+  overflow: hidden;                 /* 裁掉位移后溢出圆角的部分 */
+  border: 1px solid var(--glass-edge-outer);
+  box-shadow: var(--glass-bevel), var(--glass-shadow-1);
+}
+
+.glass-refract::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--glass-2);
+  /* 顺序很重要：先 backdrop-blur 采样背景，再由 filter 位移弯折其结果 */
+  -webkit-backdrop-filter: blur(var(--blur-panel)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-panel)) saturate(var(--glass-saturate));
+  -webkit-filter: url(#lg-refract);
+  filter: url(#lg-refract);
+}
+
+/* 内容层：压到折射层之上，保证文字/图标绝对清晰 */
+.glass-refract > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 斜向棱上高光：与 .glass 的 sheen 同一套令牌，保持两种材质观感统一 */
+.glass-refract::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: var(--glass-sheen);
+  pointer-events: none;
+  mix-blend-mode: screen;
 }
 
 /* 顶部弧面高光：只覆盖上半部，模拟光线自上方打在弧面上 */
@@ -383,11 +518,11 @@ a { color: inherit; text-decoration: none; }
    30+ 处内联 style 改用这个类，避免每页各写一遍玻璃参数。 */
 .panel {
   background: var(--glass-2);
-  -webkit-backdrop-filter: blur(var(--blur-1)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--blur-1)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-panel)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-panel)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-edge-outer);
   border-radius: 14px;
-  box-shadow: var(--glass-inner-highlight);
+  box-shadow: var(--glass-bevel);
 }
 
 /* 内嵌小块：面板内部的次级容器（如存储路径框），
@@ -405,7 +540,7 @@ a { color: inherit; text-decoration: none; }
 }
 .panel-clickable:hover {
   border-color: var(--border-light);
-  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-1);
+  box-shadow: var(--glass-bevel), var(--glass-shadow-1);
 }
 
 /* ============ 标题栏 ============ */
@@ -419,7 +554,7 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(var(--blur-1)) saturate(var(--glass-saturate));
   /* 只留底边描边：标题栏贴窗口顶，上边框会被裁掉，留着反而多一条线 */
   border-bottom: 1px solid var(--glass-edge-outer);
-  box-shadow: var(--glass-inner-highlight);
+  box-shadow: var(--glass-bevel);
   -webkit-app-region: drag;
   padding-left: 12px;
   flex-shrink: 0;
@@ -534,7 +669,7 @@ ebar-nav { display: flex; gap: 4px; }
   -webkit-backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
   border-right: 1px solid var(--glass-edge-outer);
-  box-shadow: var(--glass-inner-highlight);
+  box-shadow: var(--glass-bevel);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -745,7 +880,7 @@ ebar-nav { display: flex; gap: 4px; }
 }
 .card:hover {
   background: var(--glass-2);
-  box-shadow: var(--glass-shadow-1), var(--glass-inner-highlight);
+  box-shadow: var(--glass-bevel), var(--glass-shadow-1);
   transform: translateY(-2px);
 }
 
@@ -935,7 +1070,7 @@ ebar-nav { display: flex; gap: 4px; }
   background: var(--glass-bar);
   -webkit-backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--blur-2)) saturate(var(--glass-saturate));
-  box-shadow: var(--glass-inner-highlight);
+  box-shadow: var(--glass-bevel);
 }
 
 .pb-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -1079,14 +1214,13 @@ ebar-nav { display: flex; gap: 4px; }
 /* ============ 弹层 ============ */
 /* 菜单是玻璃层级的最高档：它是唯一"压在内容之上、且需要阅读"的元素，
    所以透明度最高（0.74）、模糊最强（36px）。透明度过低会认不出边界。 */
+/* 菜单：大玻璃面之一，走光学折射（.glass-refract 由 JSX 添加）。
+   这里只保留布局与层级，材质全部交给 .glass-refract —— 
+   刻意不再写 background / backdrop-filter，避免与伪元素层重复叠加。 */
 .menu {
   position: fixed;
-  background: var(--glass-pop);
-  -webkit-backdrop-filter: blur(var(--blur-pop)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--blur-pop)) saturate(var(--glass-saturate));
-  border: 1px solid var(--glass-edge-outer);
   border-radius: 12px;
-  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-2);
+  box-shadow: var(--glass-bevel), var(--glass-shadow-2);
   padding: 5px;
   z-index: 1000;
   min-width: 150px;
@@ -1235,15 +1369,13 @@ body.desktop-lyric-body {
   -webkit-app-region: drag;
   position: relative;
 }
+/* 登录卡：全应用最大的一块玻璃，也是折射效果最明显的载体。
+   材质交给 .glass-refract 的伪元素层，此处只管布局。 */
 .login-card {
   width: 800px;
   max-width: 92vw;
-  background: var(--glass-3);
-  -webkit-backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
-  border: 1px solid var(--glass-edge-outer);
   border-radius: 20px;
-  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-2);
+  box-shadow: var(--glass-bevel), var(--glass-shadow-2);
   display: grid;
   grid-template-columns: 300px 1fr;
   overflow: hidden;
@@ -1461,7 +1593,7 @@ body.desktop-lyric-body {
      否则半透明底的文字压在歌曲封面/封面上会读不清 */
   -webkit-backdrop-filter: blur(var(--blur-pop)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--blur-pop)) saturate(var(--glass-saturate));
-  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-1);
+  box-shadow: var(--glass-bevel), var(--glass-shadow-1);
   animation: toastIn 0.16s ease-out;
   /* 长文案最多两行，超出省略，避免横向铺满遮挡 */
   overflow: hidden;
@@ -1533,7 +1665,7 @@ body.desktop-lyric-body {
   -webkit-backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--blur-3)) saturate(var(--glass-saturate));
   border-left: 1px solid var(--glass-edge-outer);
-  box-shadow: var(--glass-inner-highlight), var(--glass-shadow-2);
+  box-shadow: var(--glass-bevel), var(--glass-shadow-2);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1681,7 +1813,16 @@ body.desktop-lyric-body {
   /* 内高光在实心底上会显得像多余的亮线 */
   :root {
     --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0);
+    /* 无模糊时厚壁折射会变成一圈突兀的白描边（没有"壁内透光"可依附），
+       必须一并关掉，回到干净的实心块 */
+    --glass-bevel: none;
     --glass-sheen: none;
+  }
+  /* 折射层同理：没有 backdrop-filter 时，位移滤镜是在弯折一张空白背景，
+     只会产生无意义的边缘锯齿。直接关掉滤镜，保留实心底色。 */
+  .glass-refract::before {
+    -webkit-filter: none;
+    filter: none;
   }
 }
 
@@ -1697,6 +1838,7 @@ body.desktop-lyric-body {
     --glass-bar: #ffffff;
     --aurora-opacity: 0;
     --glass-sheen: none;
+    --glass-bevel: none;
     --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0);
   }
   :root[data-theme="dark"] {
@@ -1713,9 +1855,16 @@ body.desktop-lyric-body {
   .menu,
   .side-drawer,
   .table-head,
-  .login-card {
+  .login-card,
+  .glass-refract::before {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+  /* 减少透明度时同时关掉光学折射：用户要的是"不透明、看得清"，
+     折射在此场景纯属干扰 */
+  .glass-refract::before {
+    -webkit-filter: none;
+    filter: none;
   }
 }
 

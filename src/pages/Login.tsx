@@ -77,7 +77,7 @@ export function LoginPage() {
 
   return (
     <div className="login-wrap">
-      <div className="login-card">
+      <div className="login-card glass-refract">
         <div className="login-side">
           <div className="login-side-brand">
             <div className="brand-mark" style={{ width: 36, height: 36, fontSize: 18 }}>云</div>

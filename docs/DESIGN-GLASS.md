@@ -59,14 +59,15 @@ box-shadow: var(--glass-inner-highlight), ...;        /* 内高光，inset 1px �
 --glass-shadow-2: 0 2px 6px rgba(20,22,28,.08), 0 16px 48px rgba(20,22,28,.14);
 ```
 
-## 2. 可复用的三个类
+## 2. 可复用的材质类
 
-| 类 | 用途 | 是否模糊 |
-|---|---|---|
-| `.glass` | 需要「浮起」的独立玻璃块 | 是（24px） |
-| `.panel` | 贴在内容流里的分组面板 | 是（18px） |
-| `.panel-inset` | 面板内部的次级凹槽 | 否，实心 `--control-fill` |
-| `.panel-clickable` | 让 `.panel` 有 hover 反馈 | — |
+| 类 | 用途 | 是否模糊 | 是否折射 |
+|---|---|---|---|
+| `.glass` | 需要「浮起」的独立玻璃块 | 是（24px） | 否 |
+| `.glass-refract` | **大玻璃面**：登录卡 / 菜单 / 抽屉 | 是（5–18px） | **是** |
+| `.panel` | 贴在内容流里的分组面板 | 是（5px） | 否 |
+| `.panel-inset` | 面板内部的次级凹槽 | 否，实心 `--control-fill` | 否 |
+| `.panel-clickable` | 让 `.panel` 有 hover 反馈 | — | — |
 
 优先用类，不要在页面里写内联样式堆玻璃参数。
 
@@ -84,7 +85,62 @@ body::before { /* 四色径向渐变极光，z-index: -1 */ }
 调色：浅色 `--aurora-1..4` 透明度 0.11–0.13，深色 0.16–0.34。
 **浅色不能调浓**，否则整页像彩纸，丢掉玻璃的干净感。
 
-## 4. 三个坑（改样式前必读）
+## 3.5 光学折射（`.glass-refract`）
+
+不是描边伪装，是**真实的背景弯折**：`feDisplacementMap` 按位移贴图
+把「玻璃背后的画面」按像素挪位，产生类似凸透镜的折射。
+
+实现放在 `index.html`（全局定义一次，不参与 React 渲染）：
+
+```html
+<filter id="lg-refract">
+  <feImage href="data:image/svg+xml,..." result="DISP"/>  <!-- 位移贴图 -->
+  <feDisplacementMap in="SourceGraphic" in2="DISP" scale="22"
+                     xChannelSelector="R" yChannelSelector="G"/>
+  <feGaussianBlur stdDeviation="0.3"/>                     <!-- 抹锯齿 -->
+</filter>
+```
+
+位移贴图的设计要点：**中心是中性灰**（`#808080`，R=G=128，位移量 0），
+只有边缘才偏离中性值。所以中心内容不弯、只有棱边弯 —— 这也是文字仍然清晰的根本原因。
+
+### 必须分两层（这是最容易踩的坑）
+
+`feDisplacementMap` 作用于 `SourceGraphic`，即**元素及其全部内容**。
+直接把它挂在带文字的卡片上，文字会一起被扭成乱码。
+
+```css
+.glass-refract::before {   /* 折射层：绝对定位、无内容 */
+  position: absolute; inset: 0; z-index: 0;
+  background: var(--glass-2);
+  backdrop-filter: blur(5px) saturate(180%);
+  filter: url(#lg-refract);
+}
+.glass-refract > * {       /* 内容层：抬到折射层之上，保持锐利 */
+  position: relative; z-index: 1;
+}
+```
+
+用 `::before` 而不是像参考库那样加一个 `.glass__warp` 子元素，
+好处是**零 JSX 侵入**——只要给已有元素加一个类名即可。
+
+### 适用范围
+
+只用于**大玻璃面**：登录卡、右键菜单、音质菜单、抽屉。
+小按钮（36–40px）不要用：`scale` 在这么小的尺寸上会让边缘发糊，
+且视觉收益几乎为零。小控件继续用 `.glass` 的多层 bevel 即可。
+
+`scale` 取值：登录卡/菜单 22；若将来用于更小的元件，需降到 8–10。
+
+### 不能挂在哪些元素上
+
+**绝不能**把 `filter: url(...)` 挂到「含有 `position: fixed` 后代」的元素上。
+`filter` 会让该元素成为包含块，播放栏内的队列/歌词抽屉会立刻错位
+（实测抽屉 `right` 偏移、高度被裁成 0）。
+
+所以：`.player-bar`、`.main-area`、`.app-shell` **永远不加** `.glass-refract`。
+
+## 4. 坑（改样式前必读）
 
 ### 4.1 `backdrop-filter` 会产生包含块
 
@@ -143,8 +199,15 @@ npm run typecheck                          # 0 错误
 npm test                                   # 101/101
 node_modules/.bin/electron scripts/visual-test.js      # 13 路由冒烟
 node_modules/.bin/electron scripts/shot-themes.js      # 14 路由 × 明暗 = 28 张
-node_modules/.bin/electron scripts/check-glass.js      # 14 项交互断言
+node_modules/.bin/electron scripts/shot-login.js       # 登录页（折射最明显）
+node_modules/.bin/electron scripts/check-glass.js      # 15 项交互断言
+node_modules/.bin/electron scripts/check-perf.js       # 帧时间（取中位数）
 ```
+
+`check-perf.js` 判据说明：单轮只采 ~20 帧，偶发丢一帧就会把 p95 抬到 33/66ms
+（实测深色主题 6 次连测中有 1 次 66.7ms，其余全是 16.7ms）。
+这种抖动与玻璃/折射无关，所以**取 3 轮中位数**而不是最差值 ——
+取最差只会把统计噪声当成性能问题。
 
 `shot-themes.js` 与 `check-glass.js` 都用独立 userData 目录，不会碰真实配置。
 其中 `check-glass.js` **必须**用 `show: true` 的可见窗口 —— 隐藏窗口会冻结

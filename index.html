@@ -8,6 +8,40 @@
     <script>(function(){try{var t=localStorage.getItem('yun-theme');if(t!=='light'&&t!=='dark'){t='light'}document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t}catch(e){document.documentElement.setAttribute('data-theme','light')}})();</script>
   </head>
   <body>
+    <!-- =========================================================
+         Liquid Glass 折射滤镜（feDisplacementMap 光学位移）
+         ---------------------------------------------------------
+         作用：把「玻璃背后的画面」按位移贴图真实弯折，产生折射，
+         而不是靠描边/高光去模仿。这是 liquid-glass-react 的核心手法。
+
+         为什么放在 index.html 而不是组件里：
+           · 只需定义一次，全应用共享同一个 filter id
+           · 不参与 React 渲染，避免每次重渲染重建 SVG 节点
+           · width/height 为 0 + position:absolute，不占布局
+
+         位移贴图（feImage 的 data URI）设计：
+           中心  #808080  → R=G=128 → feDisplacementMap 位移量 = 0（保持清晰）
+           边缘  渐变到白/黑 → 通道偏离 128 → 在棱边处产生弯折
+         即「只弯边缘、不弯中心」，这也是文字仍然清晰的原因。
+         ========================================================= -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <defs>
+        <filter id="lg-refract" x="-20%" y="-20%" width="140%" height="140%"
+                color-interpolation-filters="sRGB">
+          <!-- 位移贴图：中心中性灰（零位移），边缘强偏离（强折射） -->
+          <feImage x="0" y="0" width="100%" height="100%" result="DISP"
+            href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='200'%3E%3Cdefs%3E%3CradialGradient id='r' cx='50%25' cy='50%25' r='62%25'%3E%3Cstop offset='0%25' stop-color='%23808080'/%3E%3Cstop offset='62%25' stop-color='%23808080'/%3E%3Cstop offset='84%25' stop-color='%23d0d0d0'/%3E%3Cstop offset='100%25' stop-color='%23ffffff'/%3E%3C/radialGradient%3E%3Crect width='320' height='200' fill='url(%23r)'/%3E%3C/svg%3E"
+            preserveAspectRatio="xMidYMid slice" />
+          <!-- 位移强度：scale 越大弯折越明显。22 用于登录卡/菜单这类大玻璃面；
+               小按钮（36-40px）上应降到 8-10，否则边缘会糊 -->
+          <feDisplacementMap in="SourceGraphic" in2="DISP" scale="22"
+            xChannelSelector="R" yChannelSelector="G" result="DISP_OK" />
+          <!-- 轻微柔化，抹掉位移产生的锯齿（0.3px 几乎不影响清晰度） -->
+          <feGaussianBlur in="DISP_OK" stdDeviation="0.3" />
+        </filter>
+      </defs>
+    </svg>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

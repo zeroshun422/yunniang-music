@@ -134,10 +134,18 @@ app.whenReady().then(async () => {
       const r = m.getBoundingClientRect()
       // 菜单中心点命中的元素应当是菜单自己或其后代
       const hit = document.elementFromPoint(Math.round(r.left + r.width/2), Math.round(r.top + 12))
+      // 光学折射模式下，材质（半透明底 + 模糊 + 位移）由 ::before 承载，
+      // 元素自身的 background/backdrop-filter 是空的 —— 必须查伪元素。
+      const before = getComputedStyle(m, '::before')
       return {
         found: true,
         zIndex: cs.zIndex,
+        refract: m.classList.contains('glass-refract'),
+        // 元素自身与伪元素两处都查，兼容两种材质实现
         backdrop: cs.backdropFilter || cs.webkitBackdropFilter,
+        beforeBackdrop: before.backdropFilter || before.webkitBackdropFilter,
+        beforeFilter: before.filter,
+        beforeBg: before.backgroundColor,
         onTop: !!hit && (m === hit || m.contains(hit)),
         bg: cs.backgroundColor,
       }
@@ -146,12 +154,21 @@ app.whenReady().then(async () => {
   check('右键菜单已渲染', menu.found)
   if (menu.found) {
     check('菜单浮在最上层（未被玻璃层遮挡）', menu.onTop)
-    check('菜单有背景模糊', /blur/.test(menu.backdrop || ''), menu.backdrop)
+    // 材质要么在元素自身，要么在 ::before 伪元素上（折射模式）
+    const blurSrc = /blur/.test(menu.backdrop || '') ? menu.backdrop : menu.beforeBackdrop
+    check('菜单有背景模糊', /blur/.test(blurSrc || ''), blurSrc)
+    // 折射模式还要确认位移滤镜真的挂上了
+    if (menu.refract) {
+      // Chromium 会把 id 加上引号：url("#lg-refract")
+      check('菜单挂载了折射滤镜', /lg-refract/.test(menu.beforeFilter || ''),
+        menu.beforeFilter)
+    }
     // 菜单底色必须是半透明（rgba 且 alpha < 1），否则失去玻璃感
-    const alpha = /rgba?\(([^)]+)\)/.exec(menu.bg || '')
+    const bgSrc = menu.refract ? menu.beforeBg : menu.bg
+    const alpha = /rgba?\(([^)]+)\)/.exec(bgSrc || '')
     const parts = alpha ? alpha[1].split(',').map((x) => parseFloat(x)) : []
     const a = parts.length === 4 ? parts[3] : 1
-    check('菜单底色为半透明（玻璃）', a < 1, `bg=${menu.bg}`)
+    check('菜单底色为半透明（玻璃）', a < 1, `bg=${bgSrc}`)
   }
   await win.webContents.capturePage().then((img) =>
     fs.writeFileSync(path.join(OUT, 'dark-menu-open.png'), img.toPNG()))

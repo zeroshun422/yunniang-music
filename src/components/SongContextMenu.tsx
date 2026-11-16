@@ -81,7 +81,7 @@ export function SongContextMenu() {
 
   return (
     <div
-      className="menu"
+      className="menu glass-refract"
       style={{
         left: Math.min(x, window.innerWidth - 210),
         top: Math.min(y, window.innerHeight - 300),
