@@ -92,6 +92,11 @@ app.whenReady().then(async () => {
         backdrop: cs.backdropFilter || cs.webkitBackdropFilter,
         mainMarginRight: Math.round(mr),
         drawerW: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--drawer-w')),
+        // 播放栏现在浮在内容之上，抽屉底边要对齐它的顶边
+        barTop: (() => {
+          const bar = document.querySelector('.player-bar')
+          return bar ? Math.round(bar.getBoundingClientRect().top) : -1
+        })(),
         // 播放栏改为悬浮条后，抽屉右侧与底部都要留出同样的 gap
         barGap: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bar-gap')) || 0,
         playerH: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--player-h')) || 0,
@@ -107,11 +112,12 @@ app.whenReady().then(async () => {
     check('抽屉右缘对齐悬浮条（未被播放栏当包含块）',
       Math.abs(drawer.right - (drawer.vw - drawer.barGap)) <= 1,
       `right=${drawer.right} 期望=${drawer.vw - drawer.barGap} (vw=${drawer.vw} gap=${drawer.barGap})`)
-    // 抽屉高度：应覆盖内容区，且底部停在悬浮播放栏上方
-    const expectedBottom = drawer.vh - (drawer.playerH + drawer.barGap * 2)
-    check('抽屉底部让开悬浮播放栏（未被裁切）',
-      Math.abs(drawer.bottom - expectedBottom) <= 2 && drawer.bottom - drawer.top > 400,
-      `bottom=${drawer.bottom} 期望=${expectedBottom} h=${drawer.bottom - drawer.top}`)
+    // 抽屉底部：直接校验「抽屉在播放栏之上」，不再硬编码高度公式。
+    // 播放栏已改为绝对定位、浮在内容之上，其顶边 = vh - (player-h + 3*gap)。
+    // 用几何关系而非数字常量做断言，布局再调整也不会假红。
+    check('抽屉不与悬浮播放栏重叠（未被裁切）',
+      Math.abs(drawer.bottom - drawer.barTop) <= 2 && drawer.bottom - drawer.top > 400,
+      `drawer.bottom=${drawer.bottom} bar.top=${drawer.barTop} h=${drawer.bottom - drawer.top}`)
     // 推挤量 = 抽屉宽 + gap（内容区让位给整个右侧区域）
     const expectedMargin = drawer.drawerW + drawer.barGap
     check('主内容区被推挤（margin-right = 抽屉宽 + gap）',

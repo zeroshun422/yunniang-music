@@ -154,7 +154,15 @@ export function SongList({
     return (
       <div>
         {head}
-        <div style={{ height: 'calc(100vh - 320px)', minHeight: 320 }}>
+        {/* 高度扣除：标题栏 38 + 页面头/工具栏约 210 + 底部让给悬浮播放栏的留白。
+            末尾的 --bar-clearance 不可省：播放栏浮在内容之上后，
+            虚拟列表若仍按旧值算高度，最后若干行会滚到播放栏背后再也看不到。 */}
+        <div
+          style={{
+            height: 'calc(100vh - 320px - var(--bar-clearance, 0px))',
+            minHeight: 320,
+          }}
+        >
           <VirtualList items={songs} itemHeight={ROW_HEIGHT} renderItem={renderRow} />
         </div>
       </div>
