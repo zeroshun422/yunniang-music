@@ -222,6 +222,76 @@ body::before { /* 四色径向渐变极光，z-index: -1 */ }
 禁用态要改成「中性实心底 + 弱化文字」，做成明确状态而不是模糊状态 ——
 `.btn.primary:disabled` 已单独处理。
 
+## 4.4 主题切换：两个独立问题
+
+主题切换"看着不舒适"有两个互不相干的成因，必须分开处理。
+
+### 问题一：通配过渡导致掉帧
+
+旧实现用 `html[data-theme-animating] *` 给**所有元素**加 `transition-property`。
+实测（like 页 701 个元素，只有约 40 个真正带背景色）：
+
+| 指标 | 旧实现 | 新实现 |
+|---|---|---|
+| 自身带 transition 的元素 | **701 / 701** | **24 / 701** |
+| 过渡位置 | 每个元素各自插值 | `:root` 上 5 个变量 |
+
+新方案用 `@property` 把颜色注册为可插值变量，过渡只发生在 `:root`：
+
+```css
+@property --tx-glass-2 { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.26); }
+
+html[data-theme-animating] {
+  transition-property: --tx-glass-1, --tx-glass-2, --tx-glass-3, --tx-glass-bar, --tx-border;
+  transition-duration: 620ms;
+}
+```
+
+> ⚠️ 帧率判据在本项目不可靠：同一份代码在长驻窗口里会在 16.8ms 与 33.2ms 之间跳动。
+> 所以回归测试断言的是**实现结构**（带 transition 的元素数 <20%），
+> 而不是帧时间 —— 后者只会得到随机红绿。
+
+### 问题二：前景与背景中途撞色（真正让人"看着难受"的原因）
+
+即使不掉帧，文字在过渡中途会短暂**看不见**。
+
+实测（like 页，侧边栏文字）：
+- 同时插值：306ms 处对比度 **1.59:1**
+- 文字延后 150ms：326ms 处 **1.51:1**
+- 文字 60ms 瞬切 + 延迟 230ms：306ms 处 **1.86:1**
+- 背景换快起步缓动：309ms 处 **2.31:1**
+- 扫描 delay = 0/40/80/120/150ms 五档：**1.55 / 1.55 / 1.14 / 1.73 / 1.21**
+
+结论：**调时序治不了**。深色文字 `#111319` 与浅色文字 `#f2f2f5` 之间的任何
+线性插值都经过中灰，而背景过渡的中段也是中灰，两者必然相遇。
+
+既然冲突不可调和，就不让它们冲突：
+
+**页面主背景 `--bg-0` 与文字色改为同帧瞬切**（保持原有 16:1 高对比），
+只让玻璃面板与边框做渐变。
+
+```css
+html[data-theme-animating] {
+  transition-property: --tx-glass-1, --tx-glass-2, --tx-glass-3, --tx-glass-bar, --tx-border;
+  /* --tx-bg-* 与 --tx-text-* 不在此列 */
+}
+```
+
+实测最低对比度从 **1.07:1 → 9.66:1**，全程可读。
+
+观感上仍然是"主题在过渡"——大面积的玻璃面板确实在流动，
+而背景与文字同帧完成切换，人眼感知为"背景一变，玻璃跟上"。
+代价是没有全屏渐变，但相比"文字一瞬间消失"，这是正确取舍。
+
+### 踩到的两个模板字符串陷阱
+
+回归测试里有一段注入页面的 JS 写在模板字符串内，踩了两次坑：
+
+1. 正则 `/\(/` 中的反斜杠**被模板字符串吞掉**，送进浏览器变成 `/rgba?(([^)]+))/`，
+   抓出来的首段带 `(`，`Number('(54')` 得到 `NaN`。
+   改用 `indexOf`/`slice` 解析，不依赖任何转义。
+2. `getPropertyValue('--bg-0')` 有时返回**带引号**的字符串，需先剥引号。
+
 ## 4.5 性能：大面积 `backdrop-filter` 会掉帧
 
 这是实测踩到的真实问题，不是理论担忧。
@@ -284,7 +354,7 @@ npm test                                   # 101/101
 node_modules/.bin/electron scripts/visual-test.js      # 13 路由冒烟
 node_modules/.bin/electron scripts/shot-themes.js      # 14 路由 × 明暗 = 28 张
 node_modules/.bin/electron scripts/shot-login.js       # 登录页（折射最明显）
-node_modules/.bin/electron scripts/check-glass.js      # 18 项交互断言
+node_modules/.bin/electron scripts/check-glass.js      # 21 项交互断言
 node_modules/.bin/electron scripts/check-perf.js       # 帧时间（取中位数）
 ```
 

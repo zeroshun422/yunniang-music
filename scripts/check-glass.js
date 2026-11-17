@@ -274,6 +274,117 @@ app.whenReady().then(async () => {
     aCeil !== null && aCeil <= 0.95,
     `ceil=${aCeil}`)
 
+  // ---- 3.6 主题切换：实现规模 + 全程对比度 ----
+  // 用**确定性指标**而不是帧率判据：
+  //   本仓库的运行环境（无 GPU + 长驻窗口）帧时间抖动极大，
+  //   同一份代码在不同次测量里会在 16.8ms 与 33.2ms 之间跳动，
+  //   拿它做断言只会得到随机红绿。
+  // 改为断言实现结构是否退化成"每个元素各自过渡"：
+  //   旧实现在 701 元素页面上会让 701 个元素全部持有 transition，
+  //   新实现只让 :root 上的十几个变量参与，元素自身不再声明。
+  // 这个指标完全可复现，且正是性能差异的根因。
+  await js(`localStorage.setItem('yun-theme','light')`)
+  await win.webContents.reload()
+  await wait(2400)
+
+  const themeImpl = await js(`
+    (() => {
+      const root = document.documentElement
+      root.setAttribute('data-theme-animating', '')
+      let withTransition = 0
+      let total = 0
+      for (const el of document.querySelectorAll('*')) {
+        total++
+        const cs = getComputedStyle(el)
+        const tp = cs.transitionProperty
+        if (tp && tp !== 'none' && tp !== 'all') withTransition++
+      }
+      const rootProps = (getComputedStyle(root).transitionProperty || '')
+        .split(',').filter(Boolean).length
+      root.removeAttribute('data-theme-animating')
+      return { total, withTransition, rootProps }
+    })()
+  `)
+  // 阈值：通配选择器会让 withTransition ≈ total；新实现应远小于它
+  check('主题过渡不再命中全部元素（避免逐元素插值）',
+    themeImpl.total > 0 && themeImpl.withTransition < themeImpl.total * 0.2,
+    `带 transition 的元素 ${themeImpl.withTransition}/${themeImpl.total}`)
+  // 只要求"过渡确实发生在 :root 的少量变量上"。
+  // 具体数量会随设计调整（当前只过渡玻璃色与边框共 5 个，
+  // 页面主背景与文字为保可读性改为瞬切），所以不锁定精确值。
+  check('过渡集中在 :root 的可插值变量上（而非逐元素）',
+    themeImpl.rootProps >= 3,
+    `:root 过渡变量数=${themeImpl.rootProps}`)
+
+  // 对比度仍需实测：这是用户直接感知的"看不看得清"
+  const switchContrast = await js(`
+    new Promise(resolve => {
+      const root = document.documentElement
+      const lum = (c) => { const [r,g,b] = c.map(v => { v/=255; return v<=0.03928? v/12.92 : Math.pow((v+0.055)/1.055,2.4) }); return 0.2126*r+0.7152*g+0.0722*b }
+      // getPropertyValue 有时会把值包在引号里返回（实测 '--bg-0' 得到 "rgb(...)"），
+      // 先剥掉引号再解析，否则正则会漏掉、对比度样本数恒为 1
+      // 实测两个坑：
+      //  1) getPropertyValue('--bg-0') 有时返回带引号的字符串，需先剥引号
+      //  2) 切换瞬间 getComputedStyle(el).color 可能返回空串（元素正在重算样式），
+      //     此时必须跳过采样而不是判为失败，否则样本数恒为 1
+      // 解析 rgb()/rgba() 字符串。刻意不用正则：
+      // 这段代码位于模板字符串内，正则里的 \\( 转义会被模板字符串吞掉，
+      // 导致最终送进浏览器的正则变成 /rgba?(([^)]+))/ —— 抓出来的首段带 '('，
+      // Number('(54') === NaN，对比度恒为 NaN。
+      // 用 indexOf/slice 解析，不依赖任何转义。
+      const parseRgb = (s) => {
+        const str = String(s || '').trim().replace(/^["']|["']$/g, '')
+        const l = str.indexOf('(')
+        const r = str.lastIndexOf(')')
+        if (l < 0 || r < 0 || r <= l) return null
+        const nums = str.slice(l + 1, r).split(',').slice(0, 3).map((x) => Number(x.trim()))
+        return nums.length === 3 && nums.every((n) => Number.isFinite(n)) ? nums : null
+      }
+      const ratio = (fg,bg) => { const L1=lum(fg), L2=lum(bg); return (Math.max(L1,L2)+0.05)/(Math.min(L1,L2)+0.05) }
+
+      const items = [...document.querySelectorAll('.sidebar-item')]
+
+      let minRatio = Infinity
+      let samples = 0
+      const sample = () => {
+        // ⚠️ 每次都要重新查元素，不能缓存引用：
+        // 主题切换会让侧边栏 React 重渲染，旧节点脱离文档后
+        // getComputedStyle 返回空串，缓存引用会导致样本数恒为 1。
+        const el = [...document.querySelectorAll('.sidebar-item')]
+          .find(b => /搜索/.test(b.textContent || ''))
+        const bg = parseRgb(getComputedStyle(root).getPropertyValue('--bg-0'))
+        const fg = el ? parseRgb(getComputedStyle(el).color) : null
+        if (bg && fg) {
+          minRatio = Math.min(minRatio, ratio(fg, bg))
+          samples++
+        }
+      }
+      sample()
+      const btn = items.find(b => /深色模式/.test(b.textContent || ''))
+      if (btn) btn.click()
+      const t0 = performance.now()
+      // 用 rAF 采样而不是 setInterval：
+      // 切换期间主线程被长任务占据时，setInterval 会被饿死（实测只采到 1 次），
+      // 而 rAF 跟着渲染节奏走，能覆盖到真正的过渡帧。
+      const loop = () => {
+        sample()
+        if (performance.now() - t0 > 1300) {
+          resolve({
+            minRatio: Number.isFinite(minRatio) ? +minRatio.toFixed(2) : -1,
+            samples,
+          })
+        } else {
+          requestAnimationFrame(loop)
+        }
+      }
+      requestAnimationFrame(loop)
+    })
+  `)
+  // 阈值 3:1 —— 曾因前景/背景同时插值撞车跌到 1.44:1
+  check('主题切换全程文字可读（最低对比度 ≥ 3:1）',
+    switchContrast.minRatio >= 3,
+    `minRatio=${switchContrast.minRatio} samples=${switchContrast.samples}`)
+
   // ---- 4. 明暗模式下的文本对比度抽样 ----
   const contrast = await js(`
     (() => {

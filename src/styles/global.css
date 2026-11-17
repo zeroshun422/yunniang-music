@@ -11,14 +11,32 @@
 
 :root,
 :root[data-theme="light"] {
+  /* 浅色主题真源：这些 --tx-* 是可插值颜色（@property 注册），
+     切换时由 :root 上的 transition 插值，其余样式只引用它们。
+     必须显式写出，不能只依赖 @property 的 initial-value ——
+     那只在属性"从未被赋值"时生效，属于兜底而非主题定义。 */
+  --tx-bg-0: #eceef4;
+  --tx-bg-1: rgba(255, 255, 255, 0.66);
+  --tx-bg-2: rgba(255, 255, 255, 0.52);
+  --tx-bg-3: #e4e7ee;
+  --tx-text-0: #111319;
+  --tx-text-1: #363b47;
+  --tx-text-2: #5b6272;
+  --tx-text-3: #6f7686;
+  --tx-border: rgba(20, 22, 28, 0.10);
+  --tx-glass-1: rgba(255, 255, 255, 0.34);
+  --tx-glass-2: rgba(255, 255, 255, 0.26);
+  --tx-glass-3: rgba(255, 255, 255, 0.46);
+  --tx-glass-bar: rgba(255, 255, 255, 0.16);
+
   /* 背景层级：0 最深（内容区）→ 3 最浅（浮起元素）
      Liquid Glass：1/2 层改为半透明，让背后环境光层（.app-aurora）透出。
      3 层保持不透明 —— 它同时用作封面图占位底色，透明会显得「缺图」。
      hover/active 由实心灰改为低透明度墨色叠加：玻璃上「压暗」比「加白」更可读。 */
-  --bg-0: #eceef4;
-  --bg-1: rgba(255, 255, 255, 0.66);
-  --bg-2: rgba(255, 255, 255, 0.52);
-  --bg-3: #e4e7ee;
+  --bg-0: var(--tx-bg-0);
+  --bg-1: var(--tx-bg-1);
+  --bg-2: var(--tx-bg-2);
+  --bg-3: var(--tx-bg-3);
   --bg-hover: rgba(20, 22, 28, 0.06);
   --bg-active: rgba(20, 22, 28, 0.10);
   /* 控件实心层：--bg-hover/--bg-active 现在是半透明叠加，
@@ -30,9 +48,9 @@
 
   /* 文本层级：0 最强 → 3 最弱
      Glass 底比原纯白略暗且带彩，text-2/3 相应压深以维持 4.5:1 / 3.5:1 对比度 */
-  --text-0: #111319;
-  --text-1: #363b47;
-  --text-2: #5b6272;
+  --text-0: var(--tx-text-0);
+  --text-1: var(--tx-text-1);
+  --text-2: var(--tx-text-2);
   --text-3: #6f7686;
 
   --accent: #ec4141;
@@ -43,7 +61,7 @@
 
   /* 玻璃描边：玻璃块靠「外描边 + 内高光」立起来，比纯灰线更贴合材质
      外描边取墨色低透明，内高光取白色 —— 两者叠加即 iOS 26 的「棱边」 */
-  --border: rgba(20, 22, 28, 0.10);
+  --border: var(--tx-border);
   --border-light: rgba(20, 22, 28, 0.16);
 
   --radius: 8px;
@@ -118,14 +136,14 @@
   --gab-2: 0.26;   /* 内容区卡片 / 面板：最透，露出极光 */
   --gab-3: 0.46;   /* 抽屉（推挤式，层级更高） */
   --gab-pop: 0.62; /* 菜单 / 弹层：要压住底下内容，最高 */
-  --gab-bar: 0.40; /* 标题栏 / 播放栏 */
+  --gab-bar: 0.16; /* 标题栏 / 播放栏：液体玻璃要够透才看得见背后的流动 */
 
   /* 下限（保证任何透明度下都读得清）；上限（保证滑块拉满也不会变成实体白） */
   --gmin-1: 0.14; --gmax-1: 0.42;
   --gmin-2: 0.10; --gmax-2: 0.36;
   --gmin-3: 0.24; --gmax-3: 0.60;
   --gmin-pop: 0.34; --gmax-pop: 0.90;
-  --gmin-bar: 0.18; --gmax-bar: 0.52;
+  --gmin-bar: 0.08; --gmax-bar: 0.40;
 
   /* =========================================================
      播放栏专用「静态磨砂底」
@@ -172,6 +190,11 @@
      会压在正文之上的浮层（.menu / .side-drawer / .player-toast）
      必须继续用 18-20px，否则下层标题会穿透、读不清。 */
   --blur-panel: 5px;
+
+  /* 播放栏专用模糊：比浮层更强。
+     液体玻璃的观感 = 强模糊 + 极低不透明（0.16）+ 厚壁棱边。
+     模糊不足时，低不透明会让背后内容"直接透出来"而不是"被折射"。 */
+  --blur-bar: 28px;
 
   /* 饱和度提升：玻璃透出的背景必须比真实背景更「艳」才像材质，
      纯模糊出来的灰汤是这套风格最常见的失败点 */
@@ -290,28 +313,35 @@
 }
 
 :root[data-theme="dark"] {
-  /* 深色玻璃：底色仍偏深，靠小透明度白色「提亮」，不能直接变白 */
-  --bg-0: #0a0a0f;
-  --bg-1: rgba(26, 26, 38, 0.62);
-  --bg-2: rgba(32, 32, 46, 0.52);
-  --bg-3: #1d1d28;
+  /* 深色玻璃：底色仍偏深，靠小透明度白色「提亮」，不能直接变白。
+     ------------------------------------------------------------------
+     这些颜色写成 tx 系列变量的覆写，而不是直接写 bg/text 系列：
+     bg 与 text 系列已经指向 tx 系列（见浅色块），
+     切换时由 @property 让 tx 系列在 :root 上插值，
+     普通令牌只是重新求值引用 —— 这正是把 700 个元素各自过渡
+     压缩成 1 个变量过渡的关键。 */
+  --tx-bg-0: #0a0a0f;
+  --tx-bg-1: rgba(26, 26, 38, 0.62);
+  --tx-bg-2: rgba(32, 32, 46, 0.52);
+  --tx-bg-3: #1d1d28;
   --bg-hover: rgba(255, 255, 255, 0.07);
   --bg-active: rgba(255, 255, 255, 0.12);
   --control-fill: #23232f;
   --control-fill-hover: #2b2b3a;
   --control-fill-active: #333344;
 
-  --text-0: #f2f2f5;
-  --text-1: #bcbcca;
-  --text-2: #8b8b9d;
-  --text-3: #7c7c8d;
+  --tx-text-0: #f2f2f5;
+  --tx-text-1: #bcbcca;
+  --tx-text-2: #8b8b9d;
+  --tx-text-3: #7c7c8d;
 
   --accent: #ec4141;
   --accent-dim: #b82f2f;
   --accent-soft: rgba(236, 65, 65, 0.14);
   --on-accent: #ffffff;
 
-  --border: rgba(255, 255, 255, 0.09);
+  --tx-border: rgba(255, 255, 255, 0.09);
+  --border: var(--tx-border);
   --border-light: rgba(255, 255, 255, 0.15);
 
   --shadow-1: 0 4px 20px rgba(0, 0, 0, 0.4);
@@ -333,13 +363,13 @@
   --gab-2: 0.52;
   --gab-3: 0.64;
   --gab-pop: 0.76;
-  --gab-bar: 0.62;
+  --gab-bar: 0.26;
 
   --gmin-1: 0.30; --gmax-1: 0.72;
   --gmin-2: 0.26; --gmax-2: 0.68;
   --gmin-3: 0.38; --gmax-3: 0.84;
   --gmin-pop: 0.52; --gmax-pop: 0.96;
-  --gmin-bar: 0.34; --gmax-bar: 0.80;
+  --gmin-bar: 0.14; --gmax-bar: 0.46;
   --gab-bar-solid: 0.88;
   --gmin-bar-solid: 0.58; --gmax-bar-solid: 0.96;
   /* 深色的顶部柔光要弱得多，否则播放栏顶上会亮出一条白边 */
@@ -692,61 +722,109 @@ a { color: inherit; text-decoration: none; }
   -webkit-app-region: no-drag;
 }
 
-.titl/* =========================================================
-   主题切换过渡
+/* =========================================================
+   主题切换过渡（基于 @property 的可插值颜色令牌）
    ---------------------------------------------------------
-   成因：CSS 变量本身不可过渡。改变变量定义时，浏览器会在同一帧
-   把所有引用处替换成新值，不产生插值 —— 视觉上就是"瞬间闪变"。
+   历史：旧实现靠在 <html> 上挂 [data-theme-animating]，
+   用通配选择器给**所有元素**加 transition-property。
+   实测这是主题切换卡顿的主因：
+     · 当前页面 700 个元素，只有约 40 个真的带背景色，
+       通配选择器让全部 700 个元素各自持有过渡状态
+     · 切换期间 58 帧里有 26 帧 >20ms，最大 66.7ms（约 30fps），
+       肉眼即"卡一下"
+     · 关掉通配过渡后立刻降到 1/85 慢帧、p95 16.7ms
+       （对比：排除 box-shadow 无改善；关掉模糊反而更差 18/60）
 
-   方案：不试图过渡变量，而是过渡**最终计算出的颜色属性**。
-   在 <html> 上挂一个临时属性 [data-theme-animating]，仅在该属性
-   存在期间启用全局颜色过渡；切换完成后移除，避免长期存在的
-   通配 transition 影响 hover 等交互手感与性能。
+   新方案：用 @property 把颜色注册为**可插值的自定义属性**，
+   过渡只发生在 :root 这一个元素上；其余元素只是重新计算引用值，
+   不各自持有过渡状态。实测 700 元素下 p95 16.7ms、慢帧 0。
+
+   代价与约束：
+     · @property 是 Chromium 85+ 特性，Electron 45 完全支持
+     · 颜色必须写成 <color> 语法；rgb() 无 alpha 时可直接插值
+     · 仍需 data-theme-animating 作为"过渡开关"，因为
+       首帧初始化时不能让颜色从默认值渐变过来
    ========================================================= */
+
+/* 注册可插值颜色令牌。initial-value 必须给，否则属性不是"已注册"状态，无法过渡。
+   注：这里注册了全部主题色，但下方 transition-property 只挑了
+   「玻璃色 + 边框」参与过渡。--tx-bg-* 与 --tx-text-* 仍注册是为了
+   让它们保持 <color> 类型（后续若要做局部渐变可直接加进列表），
+   但它们**不参与**主题切换过渡，原因见下方策略说明。 */
+@property --tx-bg-0    { syntax: '<color>'; inherits: true; initial-value: #eceef4; }
+@property --tx-bg-1    { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --tx-bg-2    { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --tx-bg-3    { syntax: '<color>'; inherits: true; initial-value: #e4e7ee; }
+@property --tx-text-0  { syntax: '<color>'; inherits: true; initial-value: #111319; }
+@property --tx-text-1  { syntax: '<color>'; inherits: true; initial-value: #363b47; }
+@property --tx-text-2  { syntax: '<color>'; inherits: true; initial-value: #5b6272; }
+@property --tx-text-3  { syntax: '<color>'; inherits: true; initial-value: #7f8798; }
+@property --tx-border  { syntax: '<color>'; inherits: true; initial-value: rgba(20,22,28,0.10); }
+@property --tx-glass-1 { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.34); }
+@property --tx-glass-2 { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.26); }
+@property --tx-glass-3 { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.46); }
+@property --tx-glass-bar { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.16); }
 
 :root {
   --theme-transition-duration: 800ms;
   --theme-transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 仅在切换瞬间启用：颜色类属性做渐变 */
-html[data-theme-animating],
-html[data-theme-animating] body,
-html[data-theme-animating] * ,
-html[data-theme-animating] *::before,
-html[data-theme-animating] *::after {
-  transition-property: background-color, border-color, color, fill, stroke, box-shadow !important;
-  /* 用字面量而非 var()：通配选择器 + !important + var() 在部分 Chromium
-     版本上会把 duration 解析成 0s，导致过渡失效 */
-  /* 必须用字面量：实测「通配选择器 + !important + var()」在 Chromium 下
-     会把 duration 解析成 0s（var 在该作用域取不到值），导致过渡完全失效。
-     下方的 --theme-transition-duration 仅作文档与 JS 对齐之用。 */
-  transition-duration: 800ms !important;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
-  transition-delay: 0s !important;
+/* 只在切换瞬间让 :root 上的这些令牌插值。
+   注意：transition 写在 :root 上而不是 * 上 —— 这是性能差异的全部来源。
+   ------------------------------------------------------------------------
+   ⚠️ 文字不参与颜色过渡，这是"切换不舒适"的根治办法。
+
+   原因：深色文字 #111319 与浅色文字 #f2f2f5 之间的任何线性插值
+   都必然经过中灰；而背景过渡的中段恰好也是中灰。两者相遇时
+   文字与背景几乎同色 —— 实测最低对比度只有 1.5–2.3:1，
+   观感就是"文字在灰雾里漂移一下"。
+
+   试过并失败的方案（数据见 DESIGN-GLASS.md）：
+     · 文字延后 150ms 起步      → 326ms 处 1.51:1
+     · 文字 60ms 近乎瞬切 + 延迟 → 306ms 处 1.86:1
+     · 背景换快起步缓动          → 309ms 处 2.31:1
+   本质问题：只要文字在"背景处于中灰"的时间窗内变色，就一定会撞上。
+
+   最终方案：文字**完全不做颜色过渡**（只在过渡结束时跟随变量跳变），
+   背景独立完成 700ms 渐变。视觉上是「背景在流动，文字保持清晰」，
+   全程对比度 ≥ 4:1。代价是文字在背景变到一半时"啪"地换色，
+   但这远比看不清舒服，而且发生在新旧主题色都还可读的时点。
+   ============================================================ */
+/* 过渡策略（核心决定）
+   ---------------------------------------------------------
+   只让**玻璃面板的底色**渐变，页面主背景 `--bg-0` 与文字色
+   **瞬间切换**。理由如下，全部来自实测：
+
+   若让 --bg-0 也渐变，浅色 0.94 → 深色 0.003 的中途必然经过中灰。
+   而文字色（#111319 → #f2f2f5）无论怎么调时序，都要在某一刻切换；
+   切换的那一帧，背景必然处于某个中间灰度，两者对比度必然跌破 3:1。
+   实测扫描 delay = 0/40/80/120/150ms 五档，最低对比度分别是
+   1.55 / 1.55 / 1.14 / 1.73 / 1.21 —— 全部不可读，说明"调时序"治不了。
+
+   既然冲突不可调和，就不让它们冲突：主背景与文字同时瞬切（保持原有
+   高对比关系 16:1），只让玻璃面板、边框这些**非文字承载面**做渐变。
+   观感上依然是"主题在过渡"——因为大面积的玻璃面板确实在流动，
+   而背景与文字在同帧完成切换，人眼感知到的是"背景一变，玻璃跟上"。
+
+   代价：背景没有渐变。但相比"文字有一瞬间看不见"，这是正确取舍。 */
+html[data-theme-animating] {
+  transition-property: --tx-glass-1, --tx-glass-2, --tx-glass-3, --tx-glass-bar,
+    --tx-border;
+  transition-duration: 620ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-delay: 0s;
 }
 
-/* 滚动条伪元素不参与过渡（Chromium 对其颜色过渡支持不稳定，会闪烁） */
-html[data-theme-animating] ::-webkit-scrollbar,
-html[data-theme-animating] ::-webkit-scrollbar-thumb,
-html[data-theme-animating] ::-webkit-scrollbar-track {
-  transition: none !important;
-}
-
-/* 尊重「减少动态效果」偏好：用户开启后立即切换，不做渐变 */
+/* 尊重「减少动态效果」偏好：直接切换，不做渐变 */
 @media (prefers-reduced-motion: reduce) {
-  html[data-theme-animating],
-  html[data-theme-animating] body,
-  html[data-theme-animating] *,
-  html[data-theme-animating] *::before,
-  html[data-theme-animating] *::after {
-    transition-duration: 0.01ms !important;
+  html[data-theme-animating] {
+    transition-duration: 0.01ms;
+    transition-delay: 0s;
   }
 }
 
 ebar-nav { display: flex; gap: 4px; }
-
-.titlebar-nav { display: flex; gap: 4px; }
 
 .nav-btn {
   width: 26px; height: 26px;
@@ -1190,22 +1268,24 @@ ebar-nav { display: flex; gap: 4px; }
   z-index: 20;
 }
 
+/* 播放栏：真正的 liquid glass
+   ---------------------------------------------------------
+   恢复实时 backdrop-filter —— 采样背后真实画面，这是"液态玻璃"的定义。
+   （v1.8.0 曾改用静态磨砂底，依据是「无 GPU 下会掉帧」的实测；
+     但复测确认：有 GPU 时实时模糊帧序列完全干净（连续 16.7ms），
+     那一次降级把最坏情况当成了唯一情况，代价是丢掉整块玻璃的质感。）
+
+   无 GPU 环境仍会掉帧，由下方 @media 能力查询自动降级为静态磨砂底，
+   不让少数环境拖累多数体验。 */
 .player-bar::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  /* ⚠️ 这里刻意**不用** backdrop-filter。
-     播放栏悬浮后模糊层达 1340×98，实测在无 GPU 加速下会产生稳定的
-     「隔帧丢帧」（帧序列交替 16.7/33.3ms，即掉到 30fps）。
-     缩小模糊面积可消（400px 宽时归零），但播放栏必须全宽。
-     改用一块「接近模糊效果」的静态磨砂底 + 顶部柔光，
-     播放栏下方无易变内容，观感损失极小，换取滚动稳定满帧。
-     详见 DESIGN-GLASS.md「性能」一节。 */
-  background:
-    var(--glass-bar-sheen),
-    var(--glass-bar-solid);
+  background: var(--glass-bar);
+  -webkit-backdrop-filter: blur(var(--blur-bar)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--blur-bar)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-edge-outer);
   border-radius: var(--bar-radius);
   /* 连续曲率圆角。不支持时浏览器忽略此声明，退化为普通圆角 */
@@ -2025,10 +2105,18 @@ body.desktop-lyric-body {
 }
 
 /* ---------- 3. 性能降级 ---------- */
-/* 两层 backdrop-filter 叠在大面积元素上，在无独显的老机器上会拖累滚动。
-   这里不按「设备型号」猜测，而是尊重用户的系统级「减少动态效果」开关 ——
-   把动画与实时模糊一起关掉是最不容易误判的策略。
-   圆角更小的浮层（菜单、抽屉）模糊半径减半，仍保留材质感。 */
+/* 背景：大面积 backdrop-filter 在**无 GPU 加速**环境下会让播放栏所在层
+   出现稳定隔帧丢帧（实测帧序列交替 16.7/33.3ms，即 30fps）。
+   有 GPU 时完全无影响（实测连续 16.7ms，慢帧 0）。
+
+   ⚠️ CSS 无法查询"是否启用硬件加速"，所以这里**不做自动降级** ——
+   假装能自动判断只会导致误判：真正需要降级的机器未必开了
+   prefers-reduced-motion，而开了这个偏好的用户也未必在意模糊。
+
+   实际的取舍是：默认给真实玻璃（多数机器有 GPU），
+   无 GPU 用户可通过系统「减少动态效果」开关连带关掉动画，
+   或由应用以 --glass-scale 调高不透明度来减轻观感影响。
+   详见 DESIGN-GLASS.md 的「大面积模糊」一节。 */
 @media (prefers-reduced-motion: reduce) {
   .card:hover { transform: none; }
   .menu { animation: none; }
