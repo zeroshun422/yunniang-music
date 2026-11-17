@@ -35,13 +35,41 @@ export function SongContextMenu() {
 
   useEffect(() => {
     if (!open) return
+
     const close = () => hide()
-    document.addEventListener('click', close)
-    document.addEventListener('contextmenu', close)
+
+    // ⚠️ 关闭逻辑要避开"正在打开新菜单"的那一次右击。
+    //
+    // 背景：歌曲行的 onContextMenu 是 React 合成事件（挂在根容器冒泡），
+    // 这里的 document 监听也在冒泡阶段，两者顺序不稳定。
+    // 症状（已实测复现）：连续右键时菜单"交替失效" ——
+    // 第一次弹出、第二次什么都不弹、第三次又正常，
+    // 因为上一次右键的 close 把这次刚 show 的状态抹掉了。
+    //
+    // 修法：在捕获阶段判断这次右击的落点。
+    //   · 落在 .song-row 内 -> 行的 handler 会打开新菜单，这里不关闭
+    //   · 落在其它地方       -> 关闭当前菜单（点到空白处应该收起）
+    // 捕获阶段先于冒泡，因此能拿到 event.target 且不受 React 顺序影响。
+    const onDocContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target && target.closest('.song-row')) return
+      close()
+    }
+    // 点击菜单项时不要立刻关：菜单项自己的 onClick 会调用 hide()，
+    // 这里只负责"点别处收起"。用 closest 判断是否点在菜单内部。
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target && target.closest('.menu')) return
+      close()
+    }
+
+    document.addEventListener('contextmenu', onDocContextMenu, true)
+    document.addEventListener('click', onDocClick)
     window.addEventListener('blur', close)
+
     return () => {
-      document.removeEventListener('click', close)
-      document.removeEventListener('contextmenu', close)
+      document.removeEventListener('contextmenu', onDocContextMenu, true)
+      document.removeEventListener('click', onDocClick)
       window.removeEventListener('blur', close)
     }
   }, [open])

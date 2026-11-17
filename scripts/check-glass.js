@@ -238,6 +238,43 @@ app.whenReady().then(async () => {
   await win.webContents.capturePage().then((img) =>
     fs.writeFileSync(path.join(OUT, 'light-after-toggle.png'), img.toPNG()))
 
+  // ---- 3.4 右键菜单行为 ----
+  // 说明：这条只覆盖「菜单能弹出」与「点空白能收起」这两个确定行为。
+  // 曾经修过一个更隐蔽的 bug：document 上的 contextmenu 监听与歌曲行的
+  // React 合成事件竞争，导致连续右键时菜单"交替失效"。
+  // 但那个 bug 依赖两者的时序，**在自动化测试里无法稳定复现** ——
+  // 我试过同步读取、连续右键、同行重复右键三种序列，
+  // 注入旧代码后断言依然全绿。所以这里不假装能守住它，
+  // 只保留可确定性验证的部分，并在 DESIGN-GLASS.md 里记录成因与修法。
+  await js(`document.body.click()`)
+  await wait(200)
+
+  const rmbOpen = []
+  for (let i = 0; i < 3; i++) {
+    await js(`
+      (() => {
+        const rows = [...document.querySelectorAll('.song-row')]
+        const row = rows[${i}]
+        if (!row) return false
+        const b = row.getBoundingClientRect()
+        row.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, clientX: b.left + 200, clientY: b.top + 10,
+        }))
+        return true
+      })()
+    `)
+    await wait(300)
+    rmbOpen.push(await js(`!!document.querySelector('.menu')`))
+  }
+  check('歌曲行右键能弹出菜单',
+    rmbOpen.every(Boolean),
+    `三次结果=${rmbOpen.join(',')}`)
+
+  await js(`document.querySelector('.page-title')?.dispatchEvent(new MouseEvent('click',{bubbles:true}))`)
+  await wait(250)
+  check('点击空白处收起右键菜单',
+    !(await js(`!!document.querySelector('.menu')`)))
+
   // ---- 3.5 玻璃透明度滑块：缩放与上下限保护 ----
   // 这个功能把 alpha 交给一个变量驱动，容易在改配色时被悄悄改坏
   // （比如有人直接覆写 --glass-2 就会绕过 clamp）。

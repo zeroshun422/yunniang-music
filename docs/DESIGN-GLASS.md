@@ -342,6 +342,54 @@ html[data-theme-animating] {
 > ⚠️ 这个值一旦超过 2px，"透字"需求就不成立了。
 > 如果以后想把播放栏做得更"厚"，需要先确认这个需求是否还成立。
 
+## 4.48 右键菜单：一个与时序有关的隐蔽 bug
+
+### 症状
+
+连续右键歌曲行时，菜单会**交替失效**：第一次弹出、第二次什么都不弹、
+第三次又正常。用户侧表现为"右键偶尔没反应"。
+
+### 成因
+
+两个监听器在竞争：
+
+- 歌曲行的 `onContextMenu` 是 **React 合成事件**，挂在 React 根容器上冒泡执行
+- `SongContextMenu` 里 `document.addEventListener('contextmenu', close)` 也在冒泡阶段
+
+谁先执行取决于 React 根容器与 `document` 的相对位置，顺序并不稳定。
+若 `document` 的 `close` 在这次事件中后执行，就会把刚 `show` 的菜单状态抹掉。
+
+### 修法
+
+在**捕获阶段**判断这次右击的落点，而不是无条件关闭：
+
+```ts
+const onDocContextMenu = (e: MouseEvent) => {
+  const target = e.target as HTMLElement | null
+  if (target && target.closest('.song-row')) return  // 行会打开新菜单，别关
+  close()                                            // 点在别处才关
+}
+document.addEventListener('contextmenu', onDocContextMenu, true)
+```
+
+捕获阶段先于冒泡，能拿到 `event.target` 且不受 React 顺序影响。
+
+同时 `click` 的处理也加了"点在 `.menu` 内部就不关"，避免菜单项的
+`onClick` 与全局 `click` 打架。
+
+### 关于回归测试的坦白
+
+**这个 bug 无法用自动化测试稳定守住。** 我试过三种序列：
+
+1. 同步读取菜单状态
+2. 连续右键不同的行
+3. 重复右键同一行
+
+三种序列在**注入旧代码后断言依然全绿** —— 因为旧行为依赖两个监听的时序，
+而时序在测试环境里不可控。所以测试只断言"右键能弹出"和"点空白能收起"
+这两个确定行为，不假装能覆盖这个竞态。
+改动这块代码时请手动验证：连续右键 6 次、每次都该弹出。
+
 ## 4.5 性能：大面积 `backdrop-filter` 会掉帧
 
 这是实测踩到的真实问题，不是理论担忧。
