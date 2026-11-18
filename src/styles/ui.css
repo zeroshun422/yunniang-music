@@ -907,10 +907,21 @@
 .quality-pill__actual { opacity: 0.65; margin-left: 2px; }
 
 /* 音质菜单：向上弹出 */
-.u-quality {
+/* 音质菜单：相对 .u-anchor 向上弹出
+   -------------------------------------------------------------------------
+   ⚠️ 必须用 .u-menu.u-quality 提升优先级。
+   原因：.u-menu 里声明了 position: fixed（给右键菜单用，那种要相对视口定位），
+   而本类需要 position: absolute（相对播放栏里的音质胶囊）。
+   两者选择器都是单类、优先级相同，靠源码顺序决胜负 ——
+   .u-menu 定义在文件更后面，会覆盖 .u-quality 的 absolute，
+   菜单于是按 fixed + bottom/right 飞到了视口外（实测 y=-310，完全看不见）。
+   写成组合选择器后不再依赖源码顺序。 */
+.u-menu.u-quality {
   position: absolute;
   bottom: calc(100% + var(--sp-2));
   right: 0;
+  left: auto;
+  top: auto;
   min-width: 232px;
   animation: menu-up var(--dur-fast) var(--ease-out);
 }

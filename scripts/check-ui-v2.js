@@ -154,6 +154,66 @@ app.whenReady().then(async () => {
   await wait(250)
   check('点击空白处收起菜单', !(await js(`!!document.querySelector('.u-menu')`)))
 
+  // ---- 3.5 音质菜单：必须落在视口内且可切换 ----
+  // 曾经的真实 bug：.u-menu 声明 position:fixed，.u-quality 声明 absolute，
+  // 两者优先级相同，靠源码顺序决胜负 —— .u-menu 在后面，覆盖了 absolute，
+  // 音质菜单于是按 fixed + bottom/right 飞到视口外（实测 y=-310），
+  // 用户看到的是"点击音质胶囊没反应"。
+  await js(`document.body.click()`)
+  await wait(250)
+  await js(`(() => { const p = document.querySelector('.quality-pill'); if (p) p.click(); return !!p })()`)
+  await wait(500)
+
+  const qual = await js(`
+    (() => {
+      const m = document.querySelector('.u-menu.u-quality')
+      if (!m) return null
+      const b = m.getBoundingClientRect()
+      const cs = getComputedStyle(m)
+      return {
+        pos: cs.position,
+        top: Math.round(b.top), bottom: Math.round(b.bottom),
+        items: m.querySelectorAll('.u-quality__item').length,
+        inView: b.top >= 0 && b.bottom <= innerHeight,
+        vh: innerHeight,
+      }
+    })()
+  `)
+  check('音质菜单能打开', !!qual)
+  if (qual) {
+    check('音质菜单在视口内（不被 fixed 定位顶到屏幕外）',
+      qual.inView, `top=${qual.top} bottom=${qual.bottom} vh=${qual.vh}`)
+    check('音质菜单相对锚点定位（position:absolute）',
+      qual.pos === 'absolute', qual.pos)
+    check('音质菜单列出全部档位（6 档）', qual.items === 6, `${qual.items} 项`)
+  }
+
+  // 切换一档，确认胶囊文案跟随
+  const switched = await js(`
+    (() => {
+      const pill = document.querySelector('.quality-pill')
+      const before = pill ? pill.textContent.trim() : ''
+      const items = [...document.querySelectorAll('.u-quality__item')]
+      // 选一个与当前不同的档位
+      const target = items.find((x) => !/✓/.test(x.textContent || ''))
+      if (target) target.click()
+      return { before }
+    })()
+  `)
+  await wait(400)
+  const after = await js(`
+    (() => {
+      const pill = document.querySelector('.quality-pill')
+      return {
+        text: pill ? pill.textContent.trim() : '',
+        menuClosed: !document.querySelector('.u-menu.u-quality'),
+      }
+    })()
+  `)
+  check('音质切换后胶囊文案变化',
+    after.text !== switched.before, `${switched.before} → ${after.text}`)
+  check('切换后菜单自动关闭', after.menuClosed)
+
   // ---- 4. 抽屉 ----
   await js(`
     (() => {
