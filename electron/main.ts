@@ -18,6 +18,7 @@ import {
   levelToBr as qLevelToBr,
   inferRealLevel as qInferRealLevel,
   resolveWithFallback,
+  fetchWithLegacyFallback,
 } from './quality'
 // Cookie 合并 / 校验逻辑抽到独立模块，便于单测（见 tests/auth.test.ts）
 import { mergeCookie, hasLoginCredential } from './cookie'
@@ -345,10 +346,11 @@ const inferRealLevel = qInferRealLevel
 async function resolveSongUrl(songId, wantedLevel, cookie) {
   const chain = (QUALITY_CHAIN[wantedLevel] || QUALITY_CHAIN.exhigh) as any[]
 
-  // 单一档位的请求：v1 接口优先，失败后回退旧接口
+  // 单一档位的请求：v1 接口优先，失败后回退旧接口。
+  // 具体的兜底判定抽在 quality.ts 的 fetchWithLegacyFallback 里（有单测覆盖），
+  // 这里只负责发起两次请求 —— 避免"逻辑写在 main.ts 里、测试锁不住"。
   const fetchLevel = async (level) => {
-    // 1) v1 接口
-    try {
+    const v1 = async () => {
       const r = await ncmGet(
         `/song/url/v1?id=${encodeURIComponent(songId)}&level=${level}&encodeType=flac`,
         cookie
@@ -357,29 +359,21 @@ async function resolveSongUrl(songId, wantedLevel, cookie) {
       if (r.code === 200 && item && item.url) {
         return { ok: true, url: item.url, br: item.br, type: item.type, size: item.size }
       }
-      // 风控类错误可重试，其余（无版权等）直接判死
-      const retryable = !!r && (r.code === -460 || r.code === -462)
-      if (!retryable) {
-        // 非风控错误：仍尝试旧接口兜底一次
-        return await viaLegacy(level)
-      }
-      return { ok: false, code: r?.code, retryable: true }
-    } catch (e) {
-      return { ok: false, retryable: true, code: -1 }
+      // 把原始 code 带出去，交给 fetchWithLegacyFallback 判断是否值得重试
+      return { ok: false, code: r?.code }
     }
-  }
 
-  // 旧接口兜底（encodeType 不参与，成功率更高但音质上限较低）
-  const viaLegacy = async (level) => {
-    try {
+    const legacy = async () => {
       const br = levelToBr(level)
       const r2 = await ncmGet(`/song/url?id=${encodeURIComponent(songId)}&br=${br}`, cookie)
       const item2 = r2 && r2.data && r2.data[0]
       if (r2.code === 200 && item2 && item2.url) {
         return { ok: true, url: item2.url, br: item2.br, type: item2.type, size: item2.size }
       }
-    } catch (e) { /* ignore */ }
-    return { ok: false, retryable: false, code: -1 }
+      return { ok: false, code: r2?.code }
+    }
+
+    return await fetchWithLegacyFallback(v1 as any, legacy as any)
   }
 
   // 用共享的重试 + 降级链实现（见 electron/quality.ts，已有单测覆盖）

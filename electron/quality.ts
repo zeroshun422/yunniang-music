@@ -163,3 +163,49 @@ export async function resolveWithFallback(
 
   return { found: false, attempts, lastError }
 }
+
+/**
+ * 单档位的取链策略：v1 接口失败后**总是**尝试旧接口兜底。
+ *
+ * ---------------------------------------------------------------------------
+ * 为什么单独抽成纯函数：
+ *   这里曾经写反 —— 只有「非风控」才走旧接口兜底，风控（-460）直接判失败。
+ *   而实测恰恰相反：
+ *     · v1 接口 /song/url/v1 命中风控时返回 -460
+ *     · 同一首歌，旧接口 /song/url 在同一时刻返回 200 + 有效音频地址
+ *   也就是说风控只针对 v1，旧接口正是最需要在风控时启用的兜底。
+ *   这个错误靠读代码看不出来（逻辑"看起来"合理），只有实测才能发现，
+ *   所以抽出来用测试锁住。
+ *
+ * @param fetchV1     调 v1 接口，返回 { ok, url?, br?, type?, size?, code? }
+ * @param fetchLegacy 调旧接口，同上
+ */
+export async function fetchWithLegacyFallback(
+  fetchV1: () => Promise<FetchOutcome & { code?: number }>,
+  fetchLegacy: () => Promise<FetchOutcome & { code?: number }>
+): Promise<FetchOutcome> {
+  // 1) 先试 v1
+  let v1: (FetchOutcome & { code?: number }) | null = null
+  let v1Threw = false
+  try {
+    v1 = await fetchV1()
+    if (v1.ok && v1.url) return v1
+  } catch {
+    v1Threw = true
+  }
+
+  // 2) v1 没拿到 -> 无论风控还是无版权，都试旧接口
+  try {
+    const legacy = await fetchLegacy()
+    if (legacy.ok && legacy.url) return legacy
+  } catch {
+    /* 旧接口也异常，继续按 v1 的结果决定是否重试 */
+  }
+
+  // 3) 两者都失败：决定是否值得重试
+  //    风控（-460/-462）或请求异常 -> 可重试（风控是随机命中的，重试有意义）
+  //    无版权（其它 code）        -> 不可重试（重试只会浪费 5 次）
+  const code = v1?.code
+  const risk = v1Threw || code === -460 || code === -462
+  return { ok: false, code, retryable: risk }
+}

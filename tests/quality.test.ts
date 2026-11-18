@@ -12,6 +12,7 @@ import {
   inferRealLevel,
   levelToBr,
   resolveWithFallback,
+  fetchWithLegacyFallback,
   QUALITY_CHAIN,
   MAX_ATTEMPTS_PER_LEVEL,
   type QualityLevel,
@@ -234,5 +235,85 @@ describe('resolveWithFallback — 重试与降级', () => {
       noSleep
     )
     assert.equal(r.found, false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// fetchWithLegacyFallback — v1 失败后必须走旧接口兜底
+//
+// 回归背景：这段逻辑曾写反 —— 风控（-460）时直接判失败、不走旧接口，
+// 导致「非会员完全无法播放」。实测 v1 风控时旧接口仍能返回有效地址。
+// ---------------------------------------------------------------------------
+describe('fetchWithLegacyFallback — 旧接口兜底', () => {
+  test('v1 成功时直接用 v1，不调旧接口', async () => {
+    let legacyCalled = false
+    const r = await fetchWithLegacyFallback(
+      async () => ({ ok: true, url: 'http://v1/audio.mp3', br: 320000, type: 'mp3' }),
+      async () => { legacyCalled = true; return { ok: false } }
+    )
+    assert.equal(r.ok, true)
+    assert.equal(r.url, 'http://v1/audio.mp3')
+    assert.equal(legacyCalled, false, 'v1 成功时不应调用旧接口')
+  })
+
+  test('v1 风控（-460）时必须走旧接口并成功', async () => {
+    const r = await fetchWithLegacyFallback(
+      async () => ({ ok: false, code: -460 }),
+      async () => ({ ok: true, url: 'http://legacy/audio.mp3', br: 128000, type: 'mp3' })
+    )
+    assert.equal(r.ok, true)
+    assert.equal(r.url, 'http://legacy/audio.mp3')
+    assert.equal(r.br, 128000)
+  })
+
+  test('v1 风控（-462）同样走旧接口', async () => {
+    const r = await fetchWithLegacyFallback(
+      async () => ({ ok: false, code: -462 }),
+      async () => ({ ok: true, url: 'http://legacy/audio.mp3' })
+    )
+    assert.equal(r.ok, true)
+  })
+
+  test('v1 无版权时也应尝试旧接口（不放过任何机会）', async () => {
+    const r = await fetchWithLegacyFallback(
+      async () => ({ ok: false, code: 404 }),
+      async () => ({ ok: true, url: 'http://legacy/audio.mp3' })
+    )
+    assert.equal(r.ok, true)
+  })
+
+  test('v1 抛异常时也要走旧接口', async () => {
+    const r = await fetchWithLegacyFallback(
+      async () => { throw new Error('timeout') },
+      async () => ({ ok: true, url: 'http://legacy/audio.mp3' })
+    )
+    assert.equal(r.ok, true)
+  })
+
+  test('两者都失败时：风控可重试', async () => {
+    const r = await fetchWithLegacyFallback(
+      async () => ({ ok: false, code: -460 }),
+      async () => ({ ok: false })
+    )
+    assert.equal(r.ok, false)
+    assert.equal(r.retryable, true, '风控是随机命中的，重试有意义')
+  })
+
+  test('两者都失败时：无版权不可重试（避免浪费 5 次重试）', async () => {
+    const r = await fetchWithLegacyFallback(
+      async () => ({ ok: false, code: 404 }),
+      async () => ({ ok: false })
+    )
+    assert.equal(r.ok, false)
+    assert.equal(r.retryable, false, '无版权重试无意义')
+  })
+
+  test('旧接口抛异常时不应把整个流程炸掉', async () => {
+    const r = await fetchWithLegacyFallback(
+      async () => ({ ok: false, code: -460 }),
+      async () => { throw new Error('legacy down') }
+    )
+    assert.equal(r.ok, false)
+    assert.equal(r.retryable, true)
   })
 })

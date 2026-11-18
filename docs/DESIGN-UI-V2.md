@@ -170,6 +170,26 @@ node_modules/.bin/electron scripts/check-perf.js     # 帧时间（取中位数�
 > ⚠️ 该脚本必须用 `show: true` 的可见窗口。隐藏窗口会冻结 CSS 动画与过渡，
 > 会把"定位正确"误判成"越界"。
 
+## 10.5 播放链路：一个必须知道的接口事实
+
+网易云对 `/song/url/v1`（新接口）有随机风控，命中时返回 `-460`
+（"检测到您的网络环境存在风险"）。但**旧接口 `/song/url` 在同一时刻仍然可用**。
+
+实测（同一首歌、同一时刻）：
+
+| 请求 | 结果 |
+|---|---|
+| `/song/url/v1?...&level=standard` | `-460` 风控 |
+| `/song/url?...&br=128000` | `200` + 有效 mp3 地址 |
+| 地址 HEAD 请求 | `200`、`audio/mpeg`、632KB |
+
+**所以：v1 失败后必须无条件尝试旧接口。** 这个兜底逻辑抽在
+`electron/quality.ts` 的 `fetchWithLegacyFallback` 里，有 8 个单元测试覆盖。
+
+> ⚠️ 排查这类问题时，**不要用 `scripts/test-preload.js` 探测接口** ——
+> 那是 mock，返回的全是假数据。要用真实主进程环境：
+> `serveNcmApi()` 起服务，然后 `fetch` 真实接口。
+
 ## 11. 回退到 v1
 
 ```bash
