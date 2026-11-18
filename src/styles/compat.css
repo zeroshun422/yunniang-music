@@ -1,0 +1,695 @@
+/* =========================================================================
+   兼容层第一部分：v1 令牌别名
+   -------------------------------------------------------------------------
+   v2 重写令牌时把 v1 的名字删掉了（--text-0 / --bg-1 / --accent-soft ...），
+   但 16 个页面的内联样式仍在引用它们。缺一个就有一批元素失去颜色/圆角。
+
+   这里把旧名全部别名到新令牌：
+     · 页面不用改
+     · 语义上旧的 --text-0/1/2/3 对应新的 label 四级
+     · 旧的 --radius/--radius-lg 对应新的 --r-md/--r-lg
+   迁移完成后可整段删除。
+   ========================================================================= */
+
+:root {
+  /* 文字层级：旧 0->强，3->弱 */
+  --text-0: var(--label);
+  --text-1: var(--label-2);
+  --text-2: var(--label-3);
+  --text-3: var(--label-4);
+
+  /* 底色 */
+  --bg-0: var(--bg-canvas);
+  --bg-1: var(--bg-surface);
+  --bg-2: var(--bg-surface-2);
+  --bg-3: var(--bg-surface-3);
+  --bg-hover: color-mix(in srgb, var(--label) 7%, transparent);
+  --bg-active: color-mix(in srgb, var(--label) 12%, transparent);
+
+  /* 边框 */
+  --border: var(--separator);
+  --border-light: var(--separator-strong);
+
+  /* 玻璃 */
+  --glass-1: var(--glass-chrome);
+  --glass-2: var(--glass-card);
+  --glass-3: var(--glass-pop);
+  --glass-pop: var(--glass-pop);
+  --glass-bar: var(--glass-chrome);
+  --glass-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+
+  /* 圆角 */
+  --radius: var(--r-md);
+  --radius-lg: var(--r-lg);
+
+  /* 阴影 */
+  --shadow-1: var(--shadow-card);
+  --shadow-2: var(--shadow-pop);
+
+  /* 强调色 */
+  --accent-soft: var(--accent-tint);
+  --accent-glow: rgba(236, 65, 65, 0.30);
+
+  /* 语义色 */
+  --error-text: var(--red);
+  --error-bg: color-mix(in srgb, var(--red) 8%, var(--bg-surface));
+  --error-border: color-mix(in srgb, var(--red) 24%, transparent);
+  --error-label-bg: color-mix(in srgb, var(--red) 16%, transparent);
+  --error-label-text: var(--red);
+  --notice-text: var(--orange);
+  --notice-bg: color-mix(in srgb, var(--orange) 10%, var(--bg-surface));
+  --notice-border: color-mix(in srgb, var(--orange) 26%, transparent);
+  --notice-label-bg: color-mix(in srgb, var(--orange) 18%, transparent);
+  --notice-label-text: var(--orange);
+
+  /* 图片上的固定色（不随主题变） */
+  --fixed-on-media: #ffffff;
+  --fixed-media-scrim: rgba(0, 0, 0, 0.62);
+
+  /* 页面头横幅遮罩 */
+  --hero-scrim: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+
+  /* 滚动条与滑块 */
+  --scrollbar-thumb: var(--separator-strong);
+  --scrollbar-thumb-hover: var(--label-4);
+  --slider-thumb: var(--bg-surface);
+  --slider-thumb-border: var(--separator-strong);
+
+  /* 其它 */
+  --card-shadow: var(--shadow-card);
+  --cover-border: 0.5px solid var(--separator);
+  --tag-mv: var(--blue);
+  --brand-grad-to: #ff7a5c;
+  --ghost-hover-border: var(--separator-strong);
+}
+
+/* =========================================================================
+   兼容层：把旧版类名映射到 iOS 26 视觉
+   -------------------------------------------------------------------------
+   背景：v2 重写了骨架与组件（.u-* 类），但 16 个页面仍在用 v1 的类名
+   （.content-scroll / .page-header / .btn / .card ...）。逐页改 JSX 会引入
+   大量回归风险，而收益只是"类名更干净"。
+
+   因此这里给旧类名写一套**映射到新令牌**的样式：
+     · 页面 JSX 一行不用改，就能获得 iOS 外观
+     · 所有数值仍引用 tokens.css，不出现魔法数字
+     · 后续可逐页迁移到 .u-* 类，迁完一个删一段
+
+   这类"兼容层"必须是纯样式映射，不能改变布局语义 ——
+   否则旧页面的栅格会错位。
+   ========================================================================= */
+
+/* ---------- 页面容器 ---------- */
+/* 旧版页面自带 .content-scroll（含滚动与内边距）。
+   新版外层的 .content__scroll 已经负责滚动，若两处都滚动会出现双滚动条。
+   处理：旧容器退化为纯内容容器，滚动与内边距交给外层。 */
+.content-scroll {
+  display: block;
+}
+
+/* ---------- 页面头 ---------- */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+  flex-wrap: wrap;
+}
+
+.page-title {
+  font-size: var(--fs-hero);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.03em;
+  color: var(--label);
+}
+
+.page-sub {
+  font-size: var(--fs-sub);
+  color: var(--label-3);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--sp-3);
+}
+
+.section-title .more {
+  margin-left: auto;
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-regular);
+  color: var(--label-3);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.section-title .more:hover { color: var(--accent); }
+
+/* ---------- 按钮 ---------- */
+/* 旧版 .btn 有 primary / ghost / sm 三个修饰类，映射到新的按钮体系 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  height: 34px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  background: var(--bg-surface-3);
+  color: var(--label);
+  transition: background var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out);
+}
+.btn:hover { background: var(--separator); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 1px 3px rgba(236, 65, 65, 0.24);
+}
+.btn.primary:hover:not(:disabled) { background: var(--accent-press); }
+
+/* 主按钮禁用态：不能只降整体透明度（白字压浅红对比度会掉到 2:1 以下），
+   改成中性底 + 弱化文字，让"禁用"成为明确状态 */
+.btn.primary:disabled {
+  opacity: 1;
+  background: var(--bg-surface-3);
+  color: var(--label-3);
+  box-shadow: none;
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 0.5px solid var(--separator-strong);
+  color: var(--label);
+}
+.btn.ghost:hover:not(:disabled) { background: var(--bg-surface-2); }
+
+.btn.sm { height: 28px; padding: 0 var(--sp-3); font-size: var(--fs-caption); }
+
+/* ---------- 卡片 ---------- */
+/* 旧版 .card 是"整块可点区域"，新版视觉是封面大圆角 + hover 浮起 */
+.card {
+  cursor: pointer;
+  transition: transform var(--dur-base) var(--ease-out);
+  min-width: 0;
+}
+.card:hover { transform: translateY(-3px); }
+.card:active { transform: translateY(-1px) scale(0.99); }
+
+.card-cover-wrap {
+  position: relative;
+  margin-bottom: var(--sp-2);
+}
+
+.card-cover {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--r-md);
+  corner-shape: var(--corner-shape);
+  object-fit: cover;
+  background: var(--bg-surface-3);
+  box-shadow: var(--shadow-card);
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.card:hover .card-cover { transform: scale(1.04); }
+
+.card-play {
+  position: absolute;
+  right: var(--sp-2); bottom: var(--sp-2);
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  opacity: 0;
+  transform: translateY(6px) scale(0.9);
+  transition: opacity var(--dur-base) var(--ease-out),
+              transform var(--dur-base) var(--ease-out);
+  box-shadow: 0 4px 14px rgba(236, 65, 65, 0.40);
+}
+.card:hover .card-play { opacity: 1; transform: translateY(0) scale(1); }
+
+.card-title {
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-normal);
+  color: var(--label);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.6em;
+}
+
+.card-sub {
+  font-size: var(--fs-caption);
+  color: var(--label-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+/* 卡片网格：旧版用 .grid-cards，间距映射到新令牌 */
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--sp-5) var(--sp-4);
+}
+
+/* ---------- 面板 ---------- */
+/* 旧版 .panel 是"贴在内容流里的分组块"，映射到 iOS grouped card */
+.panel {
+  background: var(--glass-card);
+  -webkit-backdrop-filter: blur(var(--blur-card)) saturate(var(--saturate));
+  backdrop-filter: blur(var(--blur-card)) saturate(var(--saturate));
+  border: 0.5px solid var(--glass-edge-outer);
+  border-radius: var(--r-md);
+  corner-shape: var(--corner-shape);
+  box-shadow: var(--glass-bevel), var(--shadow-card);
+}
+
+.panel-inset {
+  background: var(--bg-surface-2);
+  border: 0.5px solid var(--separator);
+  border-radius: var(--r-sm);
+  corner-shape: var(--corner-shape);
+}
+
+.panel-clickable {
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.panel-clickable:hover { background: var(--bg-surface-2); }
+
+/* ---------- 芯片 / 标签页 ---------- */
+.chip {
+  height: 28px;
+  padding: 0 var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sub);
+  color: var(--label);
+  background: var(--bg-surface-3);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out);
+}
+.chip:hover { background: var(--separator); }
+.chip.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--fw-medium);
+}
+
+.tabs { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+  flex-wrap: wrap;
+}
+/* 工具栏内的按钮不参与收缩，避免被长输入框挤压 */
+.toolbar > .btn { flex-shrink: 0; }
+
+/* ---------- 表单 ---------- */
+.form-field { margin-bottom: var(--sp-4); }
+
+.form-label {
+  display: block;
+  font-size: var(--fs-sub);
+  color: var(--label-2);
+  margin-bottom: var(--sp-2);
+}
+
+.form-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--bg-surface-3);
+  font-size: var(--fs-body);
+  color: var(--label);
+  transition: background var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+.form-input:focus {
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+.form-input::placeholder { color: var(--label-3); }
+
+.search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 36px;
+  /* flex 容器内的搜索框需要能收缩：min-width:0 是关键，
+     否则内部 input 的默认最小宽度会撑开它，把后面的按钮挤到很远处 */
+  min-width: 0;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--bg-surface-3);
+  transition: background var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+.search-input-wrap:focus-within {
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+.search-input-wrap input { flex: 1; min-width: 0; font-size: var(--fs-body); }
+.search-input-wrap input::placeholder { color: var(--label-3); }
+
+/* ---------- 状态 ---------- */
+.loading-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-12) 0;
+  color: var(--label-3);
+  font-size: var(--fs-sub);
+}
+
+.spinner {
+  width: 22px; height: 22px;
+  border: 2px solid var(--separator-strong);
+  border-top-color: var(--accent);
+  border-radius: var(--r-pill);
+  animation: spin 700ms linear infinite;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-12) var(--sp-5);
+  color: var(--label-3);
+  font-size: var(--fs-sub);
+  text-align: center;
+}
+
+.empty-icon { font-size: 40px; opacity: 0.3; }
+
+.error-box {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-sm);
+  corner-shape: var(--corner-shape);
+  background: color-mix(in srgb, var(--red) 8%, var(--bg-surface));
+  border: 0.5px solid color-mix(in srgb, var(--red) 24%, transparent);
+  color: var(--red);
+  font-size: var(--fs-sub);
+  line-height: 1.6;
+  margin: var(--sp-3) 0;
+}
+
+.notice-box {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--orange) 10%, var(--bg-surface));
+  border: 0.5px solid color-mix(in srgb, var(--orange) 26%, transparent);
+  color: color-mix(in srgb, var(--orange) 80%, var(--label));
+  font-size: var(--fs-caption);
+}
+
+/* ---------- 旧版歌曲列表（部分页面仍是裸表格） ---------- */
+/* 若某页面还没迁到 <.u-list>，至少让它的行看起来一致 */
+.song-table { width: 100%; }
+
+.song-row {
+  border-radius: var(--r-sm);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.song-row:hover { background: var(--bg-surface-2); }
+.song-row.playing { background: var(--accent-tint); }
+.song-row.playing .song-name { color: var(--accent); }
+
+.song-name {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  color: var(--label);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+
+.song-album, .song-artist {
+  font-size: var(--fs-caption);
+  color: var(--label-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.song-dur {
+  font-size: var(--fs-sub);
+  color: var(--label-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.song-cover {
+  border-radius: var(--r-xs);
+  corner-shape: var(--corner-shape);
+  object-fit: cover;
+  background: var(--bg-surface-3);
+}
+
+.song-tag {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 0.5px solid currentColor;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.song-action-btn {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: var(--r-pill);
+  color: var(--label-3);
+  transition: background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out);
+}
+.song-action-btn:hover { background: var(--bg-surface-3); color: var(--label); }
+.song-action-btn.liked { color: var(--accent); }
+
+.table-head {
+  display: grid;
+  align-items: center;
+  height: 32px;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  color: var(--label-3);
+  border-bottom: 0.5px solid var(--separator);
+  padding: 0 var(--sp-3);
+}
+
+/* ---------- 工具类（旧名 -> 新令牌） ---------- */
+.row { display: flex; align-items: center; gap: var(--sp-2); }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.grow { flex: 1; min-width: 0; }
+.muted { color: var(--label-3); }
+.small { font-size: var(--fs-sub); }
+.text-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.mt-8 { margin-top: var(--sp-2); }
+.mt-12 { margin-top: var(--sp-3); }
+.mt-16 { margin-top: var(--sp-4); }
+.mt-24 { margin-top: var(--sp-6); }
+.mb-12 { margin-bottom: var(--sp-3); }
+.mb-16 { margin-bottom: var(--sp-4); }
+.mb-24 { margin-bottom: var(--sp-6); }
+
+/* ---------- 进度条 ---------- */
+.progress-line {
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--separator);
+  overflow: hidden;
+}
+.progress-line > div {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-pill);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+/* ---------- 登录页 ---------- */
+.login-wrap {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  -webkit-app-region: drag;
+}
+
+.login-card {
+  width: 840px;
+  max-width: 92vw;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  corner-shape: var(--corner-shape);
+  background: var(--glass-pop);
+  -webkit-backdrop-filter: blur(var(--blur-pop)) saturate(var(--saturate));
+  backdrop-filter: blur(var(--blur-pop)) saturate(var(--saturate));
+  border: 0.5px solid var(--glass-edge-outer);
+  box-shadow: var(--glass-bevel), var(--shadow-pop);
+  -webkit-app-region: no-drag;
+}
+
+.login-side {
+  padding: var(--sp-8) var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-3);
+  border-right: 0.5px solid var(--separator);
+  background: color-mix(in srgb, var(--bg-surface-2) 60%, transparent);
+}
+
+.login-side h2 {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.02em;
+}
+
+.login-side p {
+  font-size: var(--fs-sub);
+  color: var(--label-3);
+  line-height: 1.7;
+}
+
+.login-side-brand { display: flex; align-items: center; gap: var(--sp-3); }
+
+.login-feat {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--fs-sub);
+  color: var(--label-2);
+}
+
+.login-main {
+  padding: var(--sp-8) var(--sp-8);
+  display: flex;
+  flex-direction: column;
+}
+
+.login-tabs {
+  display: flex;
+  gap: var(--sp-5);
+  border-bottom: 0.5px solid var(--separator);
+  margin-bottom: var(--sp-6);
+}
+
+.login-tab {
+  padding: var(--sp-2) 2px;
+  font-size: var(--fs-body);
+  color: var(--label-3);
+  position: relative;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.login-tab.active {
+  color: var(--label);
+  font-weight: var(--fw-semibold);
+}
+.login-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -0.5px;
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.qr-image {
+  width: 190px; height: 190px;
+  border-radius: var(--r-md);
+  corner-shape: var(--corner-shape);
+  /* 二维码必须固定白底，否则识别率下降 */
+  background: #ffffff;
+  padding: var(--sp-2);
+}
+
+.qr-hint {
+  font-size: var(--fs-sub);
+  color: var(--label-3);
+  text-align: center;
+  line-height: 1.7;
+}
+.qr-hint .hl { color: var(--accent); }
+
+/* ---------- 桌面歌词窗口（独立透明窗口） ---------- */
+body.desktop-lyric-body {
+  background: transparent;
+  overflow: hidden;
+}
+
+.desktop-lyric {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  text-align: center;
+  padding: var(--sp-3) var(--sp-6);
+  -webkit-app-region: drag;
+}
+
+.dl-current {
+  font-size: 28px;
+  font-weight: var(--fw-bold);
+  color: #ffffff;
+  line-height: 1.35;
+  padding: 2px var(--sp-4);
+  border-radius: var(--r-md);
+  /* 透明窗口上不能用 backdrop-filter（X11 下会整块变黑），
+     用一层淡暗色衬底保证任何壁纸下可读 */
+  background: rgba(0, 0, 0, 0.28);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
+}
+
+.dl-trans {
+  font-size: 17px;
+  color: rgba(255, 255, 255, 0.86);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.dl-next {
+  font-size: var(--fs-sub);
+  color: rgba(255, 255, 255, 0.5);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}

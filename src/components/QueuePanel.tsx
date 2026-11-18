@@ -4,11 +4,10 @@ import { songCoverUrl, formatDuration } from '@/api/ncm'
 import { IconClose } from './Icons'
 
 /**
- * 播放队列抽屉
+ * 播放队列抽屉（iOS 26 风格）
  *
- * P0 改造：由「fixed 浮层」改为「右侧抽屉 + 推挤主内容区」，
- * 避免覆盖页面内容（此前在设置页会盖住音质选项，导致无法点击）。
- * 结构与样式见 global.css 的 .side-drawer / .queue-row。
+ * 视觉：右侧浮起的玻璃板（.u-drawer），推挤内容而非遮挡。
+ * 行为：支持拖拽排序（HTML5 DnD）、二次确认清空、逐条移除。
  */
 export function QueuePanel({ onClose }: { onClose: () => void }) {
   const {
@@ -37,32 +36,33 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <aside className="side-drawer" aria-label="播放队列">
-      <div className="side-drawer__head">
-        <div className="side-drawer__title">
+    <aside className="u-drawer" aria-label="播放队列">
+      <div className="u-drawer__head">
+        <div className="u-drawer__title">
           播放队列
-          <span className="muted small" style={{ marginLeft: 6 }}>({queue.length})</span>
+          <span className="u-caption u-muted queue-count">{queue.length}</span>
         </div>
-        <div className="row" style={{ gap: 4 }}>
+
+        <div className="u-row-flex">
           {queue.length > 0 && (
             <button
-              className={`btn sm ${confirmClear ? 'primary' : 'ghost'}`}
+              className={`u-btn u-btn--sm ${confirmClear ? 'u-btn--fill' : 'u-btn--gray'}`}
               onClick={handleClear}
               title={confirmClear ? '再次点击确认清空' : '清空播放队列'}
             >
               {confirmClear ? '确认清空?' : '清空'}
             </button>
           )}
-          <button className="pb-btn" onClick={onClose} title="关闭队列" aria-label="关闭播放队列">
-            <IconClose size={15} />
+          <button className="u-icon-btn" onClick={onClose} title="关闭队列" aria-label="关闭播放队列">
+            <IconClose size={16} />
           </button>
         </div>
       </div>
 
-      <div className="side-drawer__body" style={{ padding: 6 }}>
+      <div className="u-drawer__body">
         {queue.length === 0 && (
-          <div className="empty" style={{ padding: '48px 0' }}>
-            <div className="empty-icon">♫</div>
+          <div className="u-empty">
+            <div className="u-empty__icon">♫</div>
             队列是空的
           </div>
         )}
@@ -71,10 +71,17 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
           const isCurrent = i === currentIndex
           const isDragging = dragIdx === i
           const isOver = overIdx === i && dragIdx !== null && dragIdx !== i
+          const artist = (s.ar || s.artists || []).map((a) => a.name).join(' / ')
+
           return (
             <div
               key={`${s.id}-${i}`}
-              className={`queue-row${isCurrent ? ' is-current' : ''}${isDragging ? ' is-dragging' : ''}`}
+              className={[
+                'u-queue-row',
+                isCurrent ? 'is-current' : '',
+                isDragging ? 'is-dragging' : '',
+                isOver ? 'is-drag-over' : '',
+              ].filter(Boolean).join(' ')}
               draggable
               onDragStart={() => setDragIdx(i)}
               onDragOver={(e) => { e.preventDefault(); setOverIdx(i) }}
@@ -82,44 +89,30 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
               onDrop={() => onDrop(i)}
               onDragEnd={() => { setDragIdx(null); setOverIdx(null) }}
               onClick={() => playQueue(queue, i)}
-              // 拖拽落点提示：目标行加一条高亮插入线，替代原先只靠 opacity 的无反馈
-              style={
-                isOver
-                  ? {
-                      boxShadow: dragIdx! < i
-                        ? 'inset 0 -2px 0 0 var(--accent)'
-                        : 'inset 0 2px 0 0 var(--accent)',
-                      background: 'var(--bg-hover)',
-                    }
-                  : undefined
-              }
             >
               <span
-                className="drag-handle"
+                className="queue-drag"
                 aria-hidden="true"
-                style={{ fontSize: 11 }}
                 onClick={(e) => e.stopPropagation()}
               >
                 ⠿
               </span>
 
-              <span className="queue-row__idx" aria-hidden="true">
+              <span className="u-caption u-muted queue-idx" aria-hidden="true">
                 {isCurrent ? (playing ? '▶' : '❚❚') : i + 1}
               </span>
 
-              <img className="queue-row__cover" src={songCoverUrl(s, 60)} alt="" loading="lazy" />
+              <img className="u-queue-row__cover" src={songCoverUrl(s, 80)} alt="" loading="lazy" />
 
-              <div className="queue-row__main">
-                <div className="queue-row__name">{s.name}</div>
-                <div className="queue-row__artist">
-                  {(s.ar || s.artists || []).map((a) => a.name).join(' / ')}
-                </div>
+              <div className="u-queue-row__main">
+                <div className="u-queue-row__name">{s.name}</div>
+                <div className="u-queue-row__artist">{artist}</div>
               </div>
 
-              <span className="queue-row__dur">{formatDuration(s.dt || s.duration)}</span>
+              <span className="u-queue-row__dur">{formatDuration(s.dt || s.duration)}</span>
 
               <button
-                className="song-action-btn"
+                className="u-icon-btn"
                 title="移出队列"
                 aria-label={`从队列移除 ${s.name}`}
                 onClick={(e) => { e.stopPropagation(); removeFromQueue(i) }}

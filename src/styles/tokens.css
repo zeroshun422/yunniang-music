@@ -1,0 +1,377 @@
+/* =========================================================================
+   云娘音乐 · iOS 26 风格设计系统
+   -------------------------------------------------------------------------
+   这份文件是 v2 UI 的**唯一样式真源**。规则：
+
+   1. 组件 JSX 里不再写内联样式（旧版有 300 处，是风格失控的根源）
+   2. 所有尺寸/颜色/圆角/动效都走令牌，改一处即全局生效
+   3. 圆角只有 5 档（旧版散落 10 种取值），统一走 --r-* 系列
+   4. 所有玻璃面统一走 .glass 系列，不各写一套 backdrop-filter
+
+   设计取向：iOS 26
+     · 超大圆角与连续曲率（squircle）
+     · 分组式列表（grouped list）：卡片成组、组间留白、组内细分割线
+     · 大标题 + 副标题的层级（而非等宽铺满）
+     · 柔和的层次感：背景比内容淡，内容比浮层淡
+     · 克制的动效：只做"响应动作"，不做装饰性动画
+   ========================================================================= */
+
+/* =========================================================================
+   1. 颜色令牌
+   -------------------------------------------------------------------------
+   命名按**语义**而非色值：--bg-canvas 是"画布"，--bg-grouped 是"分组卡片"。
+   这样换配色时不用改组件，也不用担心某个地方写死了 #fff。
+
+   明暗两套用同一套名字，深色通过 [data-theme="dark"] 覆盖。
+   可插值的 tx-* 前缀用于主题切换过渡（见第 6 节）。
+   ========================================================================= */
+
+:root,
+:root[data-theme="light"] {
+  /* --- 层级底色：从"最远"到"最近" ---
+     iOS 的层次感来自背景比内容淡一个层级，而不是靠阴影堆叠 */
+  --tx-canvas: #f2f2f7;         /* 画布（iOS systemGroupedBackground） */
+  --tx-surface: #ffffff;        /* 卡片 / 列表行（secondarySystemGroupedBackground） */
+  --tx-surface-2: #f7f7fa;      /* 卡片内的次级区域 */
+  --tx-surface-3: #ebebf0;      /* 填充块 / 占位 */
+
+  /* --- 文字：4 级层次，iOS 的 label / secondary / tertiary / quaternary --- */
+  --tx-label: #000000;
+  --tx-label-2: rgba(60, 60, 67, 0.72);
+  --tx-label-3: rgba(60, 60, 67, 0.44);
+  --tx-label-4: rgba(60, 60, 67, 0.26);
+
+  /* --- 分隔线：iOS 用极低对比的暖灰，不是纯灰 --- */
+  --tx-separator: rgba(60, 60, 67, 0.13);
+  --tx-separator-strong: rgba(60, 60, 67, 0.22);
+
+  /* --- 玻璃层：iOS 26 的 liquid glass ---
+     不透明度按"离用户越近越实"排列；背景 blur 走第 3 节的 --blur-* --- */
+  --tx-glass-chrome: rgba(249, 249, 251, 0.72);   /* 侧边栏 / 标题栏 / 播放栏 */
+  --tx-glass-card: rgba(255, 255, 255, 0.62);     /* 内容卡片 */
+  --tx-glass-pop: rgba(250, 250, 252, 0.82);      /* 菜单 / 弹层（最高） */
+
+  /* --- 品牌色：保留网易云红，但按 iOS 的方式用（填充 + tint） --- */
+  --accent: #ec4141;
+  --accent-press: #d13a3a;
+  --accent-tint: rgba(236, 65, 65, 0.12);   /* 选中态薄雾 */
+  --accent-tint-strong: rgba(236, 65, 65, 0.20);
+  --on-accent: #ffffff;
+
+  /* --- 语义色（iOS system colors） --- */
+  --blue: #007aff;
+  --green: #34c759;
+  --orange: #ff9500;
+  --red: #ff3b30;
+  --purple: #af52de;
+
+  /* --- 阴影：iOS 少用重阴影，靠层次；仅浮层有 --- */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.08), 0 12px 40px rgba(0, 0, 0, 0.14);
+
+  /* --- 玻璃棱边：iOS 26 的"边缘高光"，非常克制 --- */
+  --glass-edge: rgba(255, 255, 255, 0.72);
+  --glass-edge-outer: rgba(0, 0, 0, 0.06);
+  --glass-bevel:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+
+  /* --- 环境光（玻璃模糊的取样来源） --- */
+  --aurora-1: rgba(236, 65, 65, 0.10);
+  --aurora-2: rgba(120, 96, 240, 0.09);
+  --aurora-3: rgba(64, 176, 214, 0.09);
+  --aurora-base: #f2f2f7;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  /* 深色不靠"变白"而靠"提亮"：iOS dark 的层级是 #000 -> #1c1c1e -> #2c2c2e */
+  --tx-canvas: #000000;
+  --tx-surface: #1c1c1e;
+  --tx-surface-2: #2c2c2e;
+  --tx-surface-3: #3a3a3c;
+
+  --tx-label: #ffffff;
+  --tx-label-2: rgba(235, 235, 245, 0.68);
+  --tx-label-3: rgba(235, 235, 245, 0.42);
+  --tx-label-4: rgba(235, 235, 245, 0.24);
+
+  --tx-separator: rgba(84, 84, 88, 0.55);
+  --tx-separator-strong: rgba(84, 84, 88, 0.80);
+
+  --tx-glass-chrome: rgba(28, 28, 30, 0.72);
+  --tx-glass-card: rgba(44, 44, 46, 0.62);
+  --tx-glass-pop: rgba(44, 44, 46, 0.86);
+
+  --accent: #ff453a;
+  --accent-press: #d93a30;
+  --accent-tint: rgba(255, 69, 58, 0.16);
+  --accent-tint-strong: rgba(255, 69, 58, 0.26);
+  --on-accent: #ffffff;
+
+  --blue: #0a84ff;
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --red: #ff453a;
+  --purple: #bf5af2;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.30), 0 4px 16px rgba(0, 0, 0, 0.24);
+  --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.50), 0 12px 40px rgba(0, 0, 0, 0.60);
+
+  --glass-edge: rgba(255, 255, 255, 0.10);
+  --glass-edge-outer: rgba(0, 0, 0, 0.50);
+  --glass-bevel:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.04);
+
+  --aurora-1: rgba(236, 65, 65, 0.16);
+  --aurora-2: rgba(120, 96, 240, 0.14);
+  --aurora-3: rgba(64, 176, 214, 0.12);
+  --aurora-base: #000000;
+
+  color-scheme: dark;
+}
+
+/* 语义变量（引用 tx-*，让主题切换可插值） */
+:root {
+  --bg-canvas: var(--tx-canvas);
+  --bg-surface: var(--tx-surface);
+  --bg-surface-2: var(--tx-surface-2);
+  --bg-surface-3: var(--tx-surface-3);
+  --label: var(--tx-label);
+  --label-2: var(--tx-label-2);
+  --label-3: var(--tx-label-3);
+  --label-4: var(--tx-label-4);
+  --separator: var(--tx-separator);
+  --separator-strong: var(--tx-separator-strong);
+  --glass-chrome: var(--tx-glass-chrome);
+  --glass-card: var(--tx-glass-card);
+  --glass-pop: var(--tx-glass-pop);
+}
+
+/* =========================================================================
+   2. 圆角：**只有 5 档**
+   -------------------------------------------------------------------------
+   旧版散落着 2/3/4/5/6/7/8/10/12/18px 十种取值，这是"看起来不统一"的
+   最大来源。iOS 的圆角是有体系的：小控件 -> 中控件 -> 卡片 -> 大卡片/模态。
+   全部走 squircle（连续曲率），由 Chromium 的 corner-shape 原生实现。
+   ========================================================================= */
+
+:root {
+  --r-xs: 6px;    /* 徽标、小标签、chip */
+  --r-sm: 10px;   /* 按钮、输入框、列表内小缩略图 */
+  --r-md: 16px;   /* 分组卡片、封面图 */
+  --r-lg: 22px;   /* 大卡片、抽屉、播放栏 */
+  --r-xl: 28px;   /* 模态、登录卡片、超大浮层 */
+
+  --r-pill: 9999px;  /* 胶囊形：唯一例外，不需要档位 */
+
+  /* 连续曲率。不支持时浏览器忽略，自动退化为普通圆角 */
+  --corner-shape: squircle;
+}
+
+/* =========================================================================
+   3. 间距与尺寸
+   -------------------------------------------------------------------------
+   iOS 用 8pt 栅格。所有留白必须是 4 的倍数，避免出现 7px/9px 这类
+   "看起来差不多但其实不一致"的值。
+   ========================================================================= */
+
+:root {
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* 布局（骨架重排后） */
+  --titlebar-h: 44px;
+  --sidebar-w: 232px;
+  --player-h: 76px;
+  --player-gap: 12px;
+  --player-total: calc(var(--player-h) + var(--player-gap) * 2);
+  /* 内容区底部必须让出的高度，避免最后一行被悬浮播放栏永久遮住 */
+  --content-inset-bottom: calc(var(--player-total) + var(--sp-4));
+
+  /* 内容区最大宽度：iOS 在大屏上不会让文本无限拉长 */
+  --content-max: 1180px;
+}
+
+/* =========================================================================
+   4. 字体
+   -------------------------------------------------------------------------
+   Linux 上没有 SF Pro，用现有 Noto Sans CJK 栈；iOS 的质感主要来自
+   **字重与字号的层级对比**，而不是字体本身，所以重点在 type scale。
+   ========================================================================= */
+
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans CJK SC",
+    "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei",
+    system-ui, sans-serif;
+  /* 数字等宽：时间、进度、时长必须对齐，否则会"抖" */
+  --font-num: ui-monospace, "SF Mono", "Noto Sans Mono", monospace;
+
+  /* iOS type scale：标题更大、正文 17px（iOS 正文基准） */
+  --fs-hero: 34px;      /* 页面大标题（iOS large title） */
+  --fs-title: 22px;     /* 区块标题 */
+  --fs-headline: 17px;  /* 强调正文 */
+  --fs-body: 15px;      /* 正文（桌面端比移动端略小，信息密度更高） */
+  --fs-sub: 13px;       /* 次要说明 */
+  --fs-caption: 11px;   /* 标签、计数 */
+  --fs-micro: 10px;     /* 极小标记（VIP/SQ 等） */
+
+  /* 行高：iOS 正文约 1.4，标题更紧 */
+  --lh-tight: 1.25;
+  --lh-normal: 1.45;
+
+  /* 字重：iOS 用 590/600 做强调，而不是 700 硬粗 */
+  --fw-regular: 400;
+  --fw-medium: 510;
+  --fw-semibold: 590;
+  --fw-bold: 680;
+}
+
+/* =========================================================================
+   5. 模糊与动效
+   ========================================================================= */
+
+:root {
+  /* 模糊半径：按层级递增。面板可以很低（底下只有环境光），
+     会压文字的浮层必须更高 */
+  --blur-chrome: 24px;   /* 侧边栏 / 标题栏 */
+  --blur-card: 12px;     /* 卡片 */
+  --blur-pop: 30px;      /* 菜单 / 抽屉 */
+  --blur-bar: 1px;       /* 播放栏：刻意极低，见下方说明 */
+  --saturate: 180%;
+
+  /* ⚠️ 播放栏的 blur 只有 1px，是有意为之：
+     播放栏浮在内容之上，需求是"能透过它看到下面的字"。
+     实测 0px 无玻璃感、1px 字可读且有柔化、2px 已无法辨认。
+     遮蔽交给不透明度。改这个值前先确认"透字"需求是否还成立。 */
+
+  /* 动效：iOS 的曲线是"快出慢停" */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 130ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
+}
+
+/* =========================================================================
+   6. 主题切换过渡
+   -------------------------------------------------------------------------
+   只让玻璃层与分隔线插值。页面主背景与文字**同帧瞬切** ——
+   因为深色文字到浅色文字的任何线性插值都经过中灰，
+   而背景过渡中段也是中灰，两者必然撞色（实测最低对比度 1.07:1）。
+   ========================================================================= */
+
+@property --tx-glass-chrome { syntax: '<color>'; inherits: true; initial-value: rgba(249,249,251,0.72); }
+@property --tx-glass-card   { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.62); }
+@property --tx-glass-pop    { syntax: '<color>'; inherits: true; initial-value: rgba(250,250,252,0.82); }
+@property --tx-separator { syntax: '<color>'; inherits: true; initial-value: rgba(60,60,67,0.13); }
+
+/* 只过渡**玻璃层**与分隔线。画布底色与文字色都不参与：
+   ------------------------------------------------------------------
+   实测踩过的坑：若让 --tx-canvas（画布）参与过渡而文字不参与，
+   切换瞬间文字已变成 #fff、画布还是 #f2f2f7，
+   对比度跌到 **1.12:1** —— 文字几乎看不见。
+   反之若两者都参与，深色文字与浅色文字的中途必然相遇于中灰，
+   同样会撞色（v1 实测 1.59:1）。
+
+   结论：画布与文字必须**同帧瞬切**（保住 19:1 的高对比），
+   只让玻璃面板与分隔线做渐变 —— 大面积的玻璃在流动，
+   观感上依然是"主题在过渡"，但任何时刻文字都清晰。 */
+html[data-theme-animating] {
+  transition-property: --tx-glass-chrome, --tx-glass-card, --tx-glass-pop, --tx-separator;
+  transition-duration: var(--dur-slow);
+  transition-timing-function: var(--ease-in-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-animating] { transition-duration: 0.01ms; }
+}
+
+/* =========================================================================
+   7. 重置
+   ========================================================================= */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root { height: 100%; width: 100%; overflow: hidden; }
+
+body {
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--label);
+  background: var(--bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  /* 字距：iOS 的正文字距略紧 */
+  letter-spacing: -0.01em;
+}
+
+/* 环境光层：给玻璃提供可被模糊的背景。
+   主窗口不透明，模糊对象由应用自绘，因此在 X11/Wayland 下行为一致 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 50% at 8% 2%, var(--aurora-1), transparent 62%),
+    radial-gradient(ellipse 54% 54% at 94% 8%, var(--aurora-2), transparent 64%),
+    radial-gradient(ellipse 64% 46% at 82% 94%, var(--aurora-3), transparent 66%),
+    var(--aurora-base);
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  letter-spacing: inherit;
+}
+
+input {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  outline: none;
+  letter-spacing: inherit;
+}
+
+a { color: inherit; text-decoration: none; }
+img { display: block; }
+
+/* 滚动条：iOS 风格（极细、悬停才显形） */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--separator-strong);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  opacity: 0;
+}
+::-webkit-scrollbar-thumb:hover { background-clip: content-box; }
+
+/* 焦点环：键盘可达性。iOS 用蓝色描边 */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+:focus:not(:focus-visible) { outline: none; }

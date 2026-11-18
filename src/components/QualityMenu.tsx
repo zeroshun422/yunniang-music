@@ -31,15 +31,15 @@ export function QualityMenu() {
   const isLossless = quality === 'lossless' || quality === 'hires' || quality === 'jymaster'
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} className="u-anchor">
       <button
-        className={`quality-pill ${isLossless ? 'sq' : ''}`}
+        className={`quality-pill${isLossless ? ' is-lossless' : ''}`}
         onClick={() => setOpen((o) => !o)}
         title={qualityNotice || current?.desc}
       >
         {current?.badge || current?.label || quality}
         {actualQuality && actualQuality !== quality && (
-          <span style={{ opacity: 0.65, marginLeft: 4 }}>
+          <span className="quality-pill__actual">
             → {QUALITIES.find((q) => q.level === actualQuality)?.label || actualQuality}
           </span>
         )}
@@ -47,33 +47,33 @@ export function QualityMenu() {
       </button>
 
       {open && (
-        <div
-          className="menu quality-panel glass-refract"
-          style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: 8 }}
-        >
-          <div style={{ padding: '6px 11px 8px', fontSize: 11, color: 'var(--text-3)' }}>
-            播放音质
-          </div>
+        <div className="u-menu u-quality" role="menu">
+          <div className="u-menu__head">播放音质</div>
+
           {QUALITIES.map((q) => {
             const active = q.level === quality
             const actual = q.level === actualQuality
             return (
               <button
                 key={q.level}
-                className={`menu-item quality-item ${active ? 'active' : ''}`}
+                className={`u-menu__item u-quality__item${active ? ' is-active' : ''}`}
                 onClick={() => { setQuality(q.level as QualityLevel); setOpen(false) }}
+                role="menuitem"
               >
-                <span style={{ display: 'flex', flexDirection: 'column', gap: 1, textAlign: 'left' }}>
-                  <span>{q.label}{q.badge ? ` · ${q.badge}` : ''}</span>
-                  <span className="quality-sub">{q.desc}</span>
+                <span className="u-quality__text">
+                  <span className="u-quality__label">
+                    {q.label}{q.badge ? ` · ${q.badge}` : ''}
+                  </span>
+                  <span className="u-quality__desc">{q.desc}</span>
                 </span>
-                {active && <span className="check">✓</span>}
-                {!active && actual && <span className="quality-sub">当前</span>}
+                {active && <span className="u-menu__check">✓</span>}
+                {!active && actual && <span className="u-quality__desc">当前</span>}
               </button>
             )
           })}
+
           {actualBr > 0 && (
-            <div style={{ borderTop: '1px solid var(--border)', marginTop: 5, padding: '7px 11px 4px', fontSize: 11, color: 'var(--text-3)' }}>
+            <div className="u-quality__foot">
               正在播放：{Math.round(actualBr / 1000)} kbps
             </div>
           )}

@@ -107,31 +107,35 @@ export function SongContextMenu() {
     }
   }
 
+  // 位置：靠右下时向左上翻转，避免出屏。
+  // 菜单宽度/高度用保守估算值，宁可多留空隙也不要贴边裁切。
+  const MENU_W = 208
+  const MENU_H = 300
+  const left = Math.min(x, window.innerWidth - MENU_W - 8)
+  const top = Math.min(y, window.innerHeight - MENU_H - 8)
+
   return (
     <div
-      className="menu glass-refract"
-      style={{
-        left: Math.min(x, window.innerWidth - 210),
-        top: Math.min(y, window.innerHeight - 300),
-        minWidth: 200,
-      }}
+      className="u-menu u-context"
+      style={{ left: Math.max(8, left), top: Math.max(8, top) }}
       onClick={(e) => e.stopPropagation()}
+      role="menu"
     >
-      <button className="menu-item" onClick={() => { playSong(song, usePlayer.getState().queue); hide() }}>
+      <button className="u-menu__item" onClick={() => { playSong(song, usePlayer.getState().queue); hide() }}>
         立即播放
       </button>
-      <button className="menu-item" onClick={() => { addNext(song); hide() }}>
+      <button className="u-menu__item" onClick={() => { addNext(song); hide() }}>
         下一首播放
       </button>
-      <button className="menu-item" onClick={() => { addToQueue(song); hide() }}>
+      <button className="u-menu__item" onClick={() => { addToQueue(song); hide() }}>
         <IconPlus size={14} /> 加入播放队列
       </button>
 
-      <div className="menu-sep" />
+      <div className="u-menu__sep" />
 
       {user && (
         <button
-          className="menu-item"
+          className="u-menu__item"
           onClick={async () => {
             try { await toggleLike(song.id) } catch (e) {}
             hide()
@@ -142,13 +146,11 @@ export function SongContextMenu() {
         </button>
       )}
 
-      <button className="menu-item" onClick={handleDownload} disabled={downloading}>
+      <button className="u-menu__item" onClick={handleDownload} disabled={downloading}>
         <IconDownload size={14} /> {downloading ? msg || '下载中…' : '下载当前音质'}
       </button>
 
-      {msg && !downloading && (
-        <div style={{ padding: '4px 11px 6px', fontSize: 11, color: 'var(--text-2)' }}>{msg}</div>
-      )}
+      {msg && !downloading && <div className="u-menu__foot">{msg}</div>}
     </div>
   )
 }

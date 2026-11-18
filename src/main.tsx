@@ -18,7 +18,13 @@ import { PlaylistDetailPage } from './pages/PlaylistDetail'
 import { ArtistPage } from './pages/Artist'
 import { SettingsPage } from './pages/Settings'
 import { DesktopLyric } from './pages/DesktopLyric'
-import './styles/global.css'
+// 样式分两层：tokens 是设计令牌（颜色/圆角/间距/字阶），ui 是组件样式。
+// 顺序不能反：ui.css 依赖 tokens.css 的变量。
+import './styles/tokens.css'
+import './styles/ui.css'
+// 兼容层：把 v1 页面仍在用的旧类名映射到新视觉。
+// 迁完一个页面就可以从 compat.css 删掉对应的一段。
+import './styles/compat.css'
 import { useTheme } from './store/theme'
 
 // 在任何组件渲染前应用主题，避免首帧闪烁

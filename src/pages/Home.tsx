@@ -41,6 +41,12 @@ function toSong(item: NewSongItem): Song | null {
   }
 }
 
+/**
+ * 发现音乐（iOS 26 风格）
+ *
+ * 布局：超大标题（large title）-> 推荐歌单网格 -> 最新音乐网格。
+ * 卡片用 .u-card（封面圆角 + hover 浮起 + 播放按钮淡入）。
+ */
 export function HomePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -55,9 +61,7 @@ export function HomePage() {
   const [newSongErr, setNewSongErr] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<number | null>(null)
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
@@ -70,7 +74,6 @@ export function HomePage() {
       ncm.api<any>('/personalized/newsong?limit=12'),
     ])
 
-    // 推荐歌单
     if (plRes.status === 'fulfilled') {
       setPlaylists(plRes.value || [])
     } else {
@@ -78,7 +81,6 @@ export function HomePage() {
       setPlaylistErr((plRes.reason && plRes.reason.message) || '推荐歌单加载失败')
     }
 
-    // 最新音乐
     if (nsRes.status === 'fulfilled') {
       const result: NewSongItem[] = ((nsRes.value && nsRes.value.result) || []) as NewSongItem[]
       const songs: Song[] = []
@@ -98,10 +100,11 @@ export function HomePage() {
       setNewSongErr((nsRes.reason && nsRes.reason.message) || '最新音乐加载失败')
     }
 
-    // 两个区块都失败时，整页报错
     if (plRes.status === 'rejected' && nsRes.status === 'rejected') {
       setError(
-        (plRes.reason && plRes.reason.message) || (nsRes.reason && nsRes.reason.message) || '加载失败'
+        (plRes.reason && plRes.reason.message) ||
+        (nsRes.reason && nsRes.reason.message) ||
+        '加载失败'
       )
     }
 
@@ -123,98 +126,78 @@ export function HomePage() {
 
   if (loading) {
     return (
-      <div className="content-scroll">
-        <div className="loading-wrap">
-          <div className="spinner" />
-          <div>正在为你准备推荐…</div>
-        </div>
+      <div className="u-loading">
+        <div className="u-spinner" />
+        <div>正在为你准备推荐…</div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="content-scroll">
-        <div className="page-header">
-          <h1 className="page-title">发现音乐</h1>
-          <span className="page-sub">{todayText()}</span>
+      <>
+        <div className="page-head">
+          <div className="page-head__text">
+            <h1 className="page-head__title">发现音乐</h1>
+            <div className="page-head__sub">{todayText()}</div>
+          </div>
         </div>
-        <div className="error-box">{error}</div>
-        <button className="btn" onClick={load}>重试</button>
-      </div>
+        <div className="u-error">{error}</div>
+        <button className="u-btn u-btn--gray" onClick={load}>重试</button>
+      </>
     )
   }
 
   const nickname = user?.nickname || '朋友'
 
   return (
-    <div className="content-scroll">
-      {/* 欢迎区 */}
-      <div className="page-header" style={{ marginBottom: 8 }}>
-        <h1 className="page-title">
-          {greeting()}，{nickname}
-        </h1>
-        <span className="page-sub">{todayText()}</span>
-      </div>
-      <div
-        style={{
-          fontSize: 12.5,
-          color: 'var(--text-2)',
-          marginBottom: 26,
-        }}
-      >
-        今天想听点什么？这里有你可能喜欢的歌单和新歌。
+    <>
+      {/* 页面头：iOS large title */}
+      <div className="page-head">
+        <div className="page-head__text">
+          <h1 className="page-head__title">{greeting()}，{nickname}</h1>
+          <div className="page-head__sub">{todayText()} · 今天想听点什么？</div>
+        </div>
       </div>
 
       {/* 推荐歌单 */}
-      <section className="hero-section">
-        <div className="section-title">
-          推荐歌单
-          <span className="more" onClick={() => navigate('/square')}>更多 ›</span>
+      <section>
+        <div className="section-head">
+          <h2 className="section-head__title">推荐歌单</h2>
+          <span className="section-head__more" onClick={() => navigate('/square')}>更多 ›</span>
         </div>
 
         {playlistErr ? (
-          <div className="error-box">
+          <div className="u-error">
             {playlistErr}
-            <button
-              className="btn sm"
-              style={{ marginLeft: 10 }}
-              onClick={load}
-            >
-              重试
-            </button>
+            <button className="u-btn u-btn--sm u-btn--gray u-ml-2" onClick={load}>重试</button>
           </div>
         ) : playlists.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon">♪</div>
-            暂无推荐歌单
-          </div>
+          <div className="u-empty"><div className="u-empty__icon">♪</div>暂无推荐歌单</div>
         ) : (
-          <div className="grid-cards">
+          <div className="u-grid">
             {playlists.map((p) => (
-              <div className="card" key={p.id} onClick={() => navigate(`/playlist/${p.id}`)}>
-                <div className="card-cover-wrap">
+              <div className="u-card" key={p.id} onClick={() => navigate(`/playlist/${p.id}`)}>
+                <div className="u-card__art">
                   <img
-                    className="card-cover"
-                    src={ncm.coverUrl(p.coverImgUrl || p.picUrl, 300)}
+                    className="u-card__img"
+                    src={ncm.coverUrl(p.coverImgUrl || p.picUrl, 400)}
                     alt=""
+                    loading="lazy"
                   />
                   <button
-                    className="card-play"
+                    className="u-card__play"
                     title="播放该歌单"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      playPlaylist(p)
-                    }}
+                    onClick={(e) => { e.stopPropagation(); playPlaylist(p) }}
                   >
-                    <IconPlay size={15} />
+                    <IconPlay size={16} />
                   </button>
                 </div>
-                <div className="card-title">{p.name}</div>
-                <div className="card-sub">
+                <div className="u-card__title">{p.name}</div>
+                <div className="u-card__sub">
                   {playingId === p.id
                     ? '正在加载…'
-                    : `播放 ${ncm.formatCount(ncm.getPlayCount(p))} · ${p.trackCount || 0} 首`}
+                    : `${ncm.formatCount(ncm.getPlayCount(p))} 次播放 · ${p.trackCount || 0} 首`}
                 </div>
               </div>
             ))}
@@ -224,60 +207,53 @@ export function HomePage() {
 
       {/* 最新音乐 */}
       <section>
-        <div className="section-title">
-          最新音乐
-          <span className="more" onClick={() => navigate('/rank')}>更多 ›</span>
+        <div className="section-head">
+          <h2 className="section-head__title">最新音乐</h2>
+          <span className="section-head__more" onClick={() => navigate('/rank')}>更多 ›</span>
         </div>
 
         {newSongErr ? (
-          <div className="error-box">
+          <div className="u-error">
             {newSongErr}
-            <button className="btn sm" style={{ marginLeft: 10 }} onClick={load}>
-              重试
-            </button>
+            <button className="u-btn u-btn--sm u-btn--gray u-ml-2" onClick={load}>重试</button>
           </div>
         ) : newSongs.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon">♪</div>
-            暂无新歌推荐
-          </div>
+          <div className="u-empty"><div className="u-empty__icon">♪</div>暂无新歌推荐</div>
         ) : (
-          <div className="grid-cards">
+          <div className="u-grid">
             {newSongs.map((s, i) => {
               const artists = (s.ar || s.artists || []).map((a) => a.name).join(' / ') || '未知歌手'
               const cover = newSongPics[s.id] || s.al?.picUrl
-              const album = s.al?.name || s.album?.name || ''
               return (
                 <div
-                  className="card"
+                  className="u-card"
                   key={s.id}
                   title={`${s.name} - ${artists}`}
                   onClick={() => playQueue(newSongs, i)}
                 >
-                  <div className="card-cover-wrap">
-                    <img className="card-cover" src={ncm.coverUrl(cover, 300)} alt="" />
+                  <div className="u-card__art">
+                    <img
+                      className="u-card__img"
+                      src={ncm.coverUrl(cover, 400)}
+                      alt=""
+                      loading="lazy"
+                    />
                     <button
-                      className="card-play"
+                      className="u-card__play"
                       title="播放"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        playQueue(newSongs, i)
-                      }}
+                      onClick={(e) => { e.stopPropagation(); playQueue(newSongs, i) }}
                     >
-                      <IconPlay size={15} />
+                      <IconPlay size={16} />
                     </button>
                   </div>
-                  <div className="card-title">{s.name}</div>
-                  <div className="card-sub">{artists}</div>
-                  {album && (
-                    <div className="card-sub" style={{ color: 'var(--text-3)' }}>{album}</div>
-                  )}
+                  <div className="u-card__title">{s.name}</div>
+                  <div className="u-card__sub">{artists}</div>
                 </div>
               )
             })}
           </div>
         )}
       </section>
-    </div>
+    </>
   )
 }

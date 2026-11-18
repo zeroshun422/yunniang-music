@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { usePlayer } from '@/store/player'
 import { useLibrary } from '@/store/library'
 import { useUi } from '@/store/ui'
@@ -12,6 +12,15 @@ import {
 import { QueuePanel } from './QueuePanel'
 import { LyricPanel } from './LyricPanel'
 
+/**
+ * 播放栏（iOS 26 风格）
+ *
+ * 视觉：浮在内容之上的玻璃条（.player + ::before 承载模糊），
+ * 内容从它背后滚过 -> 能透见底层文字。
+ *
+ * 结构：左（当前曲目）/ 中（控制 + 进度）/ 右（音质、歌词、队列、音量）。
+ * 布局与材质全在 ui.css，本组件只保留状态与交互逻辑。
+ */
 export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () => void }) {
   const {
     queue, currentIndex, playing, currentTime, duration, volume, muted,
@@ -34,24 +43,24 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
     if (user?.userId && likedIds.size === 0) loadLikes(user.userId).catch(() => {})
   }, [user?.userId])
 
-  const currentSong = queue[currentIndex]
-  const isLiked = !!(currentSong && likedIds.has(currentSong.id))
+  const song = queue[currentIndex]
+  const isLiked = !!(song && likedIds.has(song.id))
 
   const handleToggleLike = async () => {
-    if (!currentSong || !user || likeBusy) return
+    if (!song || !user || likeBusy) return
     setLikeBusy(true)
     try {
-      await toggleLike(currentSong.id)
+      await toggleLike(song.id)
     } catch (e) {
       // 失败时静默回滚（toggleLike 内部已回滚状态）
     } finally {
       setLikeBusy(false)
     }
   }
+
   const [dragging, setDragging] = useState(false)
   const [dragVal, setDragVal] = useState(0)
 
-  const song = queue[currentIndex]
   // 拖动期间用 dragVal 渲染，避免 timeupdate 把进度条拉回去
   const displayTime = dragging ? dragVal : currentTime
   const progress = duration > 0 ? (displayTime / duration) * 100 : 0
@@ -65,30 +74,35 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
     if (!dragging) seek((v / 100) * duration)
   }
 
-
+  const artistText = song
+    ? (song.ar || song.artists || []).map((a) => a.name).join(' / ') || '未知歌手'
+    : ''
 
   return (
-    <div className="player-bar">
-      {/* 左：当前歌曲 */}
-      <div className="pb-left">
+    <div className="player">
+      {/* ---------- 左：当前曲目 ---------- */}
+      <div className="player__now">
         {song ? (
           <>
             <img
-              className="pb-cover"
-              src={songCoverUrl(song, 120)}
+              className="player__cover"
+              src={songCoverUrl(song, 160)}
               alt=""
-              style={{ cursor: 'pointer' }}
               onClick={() => toggleDrawer('lyric')}
               onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2' }}
             />
-            <div className="pb-meta">
-              <div className="pb-title" title={song.name} style={{ cursor: 'pointer' }} onClick={() => toggleDrawer('lyric')}>{song.name}</div>
-              <div className="pb-artist">
-                {(song.ar || song.artists || []).map((a) => a.name).join(' / ') || '未知歌手'}
+            <div className="player__meta">
+              <div
+                className="player__title u-ellipsis"
+                title={song.name}
+                onClick={() => toggleDrawer('lyric')}
+              >
+                {song.name}
               </div>
+              <div className="player__artist u-ellipsis">{artistText}</div>
             </div>
             <button
-              className={`pb-like ${isLiked ? 'liked' : ''}`}
+              className={`u-icon-btn${isLiked ? ' is-active' : ''}`}
               title={!user ? '登录后可收藏' : isLiked ? '取消喜欢' : '喜欢'}
               disabled={!user || likeBusy}
               onClick={handleToggleLike}
@@ -97,40 +111,49 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
             </button>
           </>
         ) : (
-          <div className="pb-meta">
-            <div className="pb-title" style={{ color: 'var(--text-3)' }}>未在播放</div>
-            <div className="pb-artist">选择一首歌曲开始</div>
+          <div className="player__meta">
+            <div className="player__title u-muted">未在播放</div>
+            <div className="player__artist">选择一首歌曲开始</div>
           </div>
         )}
       </div>
 
-      {/* 中：控制 + 进度 */}
-      <div className="pb-center">
-        <div className="pb-controls">
+      {/* ---------- 中：控制 + 进度 ---------- */}
+      <div className="player__center">
+        <div className="player__controls">
           <button
-            className={`pb-btn ${shuffle ? 'active' : ''}`}
+            className={`u-icon-btn${shuffle ? ' is-active' : ''}`}
             title={shuffle ? '随机播放：开' : '随机播放：关'}
             onClick={toggleShuffle}
           >
             <IconShuffle size={16} />
           </button>
-          <button className="pb-btn" title="上一首" onClick={() => prev()} disabled={!queue.length}>
-            <IconPrev size={17} />
+
+          <button className="u-icon-btn" title="上一首" onClick={() => prev()} disabled={!queue.length}>
+            <IconPrev size={18} />
           </button>
-          <button className="pb-play" onClick={toggle} disabled={!queue.length || loading} title={playing ? '暂停' : '播放'}>
+
+          <button
+            className="u-play-btn"
+            onClick={toggle}
+            disabled={!queue.length || loading}
+            title={playing ? '暂停' : '播放'}
+          >
             {loading ? (
-              <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+              <span className="u-spinner u-spinner--sm" />
             ) : playing ? (
-              <IconPause size={17} />
+              <IconPause size={18} />
             ) : (
-              <IconPlay size={17} />
+              <IconPlay size={18} />
             )}
           </button>
-          <button className="pb-btn" title="下一首" onClick={() => next(true)} disabled={!queue.length}>
-            <IconNext size={17} />
+
+          <button className="u-icon-btn" title="下一首" onClick={() => next(true)} disabled={!queue.length}>
+            <IconNext size={18} />
           </button>
+
           <button
-            className={`pb-btn ${repeat !== 'off' ? 'active' : ''}`}
+            className={`u-icon-btn${repeat !== 'off' ? ' is-active' : ''}`}
             title={repeat === 'off' ? '循环：关' : repeat === 'all' ? '列表循环' : '单曲循环'}
             onClick={() => setRepeat(repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off')}
           >
@@ -138,10 +161,10 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
           </button>
         </div>
 
-        <div className="pb-progress">
-          <span className="pb-time">{formatDuration(displayTime * 1000)}</span>
+        <div className="player__progress">
+          <span className="player__time">{formatDuration(displayTime * 1000)}</span>
           <input
-            className="slider"
+            className="u-slider"
             type="range"
             min={0} max={100} step={0.2}
             value={progress}
@@ -153,75 +176,72 @@ export function PlayerBar({ onToggleDesktopLyric }: { onToggleDesktopLyric: () =
               seek((v / 100) * duration)
               setDragging(false)
             }}
+            aria-label="播放进度"
           />
-          <span className="pb-time">{formatDuration(duration * 1000)}</span>
+          <span className="player__time">{formatDuration(duration * 1000)}</span>
         </div>
       </div>
 
-      {/* 右：音质 / 歌词 / 队列 / 音量 */}
-      <div className="pb-right">
+      {/* ---------- 右：音质 / 歌词 / 队列 / 音量 ---------- */}
+      <div className="player__tools">
         <QualityMenu />
 
-        <button className="pb-btn" title="桌面歌词" onClick={onToggleDesktopLyric}>
-          <IconLyric size={17} />
+        <button className="u-icon-btn" title="桌面歌词" onClick={onToggleDesktopLyric}>
+          <IconLyric size={18} />
         </button>
 
         <button
-          className={`pb-btn ${queueOpen ? 'active' : ''}`}
+          className={`u-icon-btn${queueOpen ? ' is-active' : ''}`}
           title="播放队列"
           onClick={() => toggleDrawer('queue')}
         >
-          <IconQueue size={17} />
+          <IconQueue size={18} />
         </button>
 
-        <div className="volume-wrap">
-          <button className="pb-btn" onClick={toggleMute} title={muted ? '取消静音' : '静音'}>
-            {muted || volume === 0 ? <IconVolumeMute size={17} /> : <IconVolume size={17} />}
+        <div className="volume">
+          <button className="u-icon-btn" onClick={toggleMute} title={muted ? '取消静音' : '静音'}>
+            {muted || volume === 0 ? <IconVolumeMute size={18} /> : <IconVolume size={18} />}
           </button>
           <input
-            className="slider volume-slider"
+            className="u-slider"
             type="range"
             min={0} max={100}
             value={muted ? 0 : Math.round(volume * 100)}
             onChange={(e) => setVolume(Number(e.target.value) / 100)}
+            aria-label="音量"
           />
         </div>
       </div>
 
-      {/* 错误 / 音质提示
-          修复：原实现用 left:16/right:16 撑满全宽并绝对定位在播放栏内，
-          会向上溢出遮住播放控件。现改为限宽、贴右、最多两行截断，
-          并整体上移，确保不覆盖任何可点击元素。 */}
+      {/* ---------- 错误 / 音质提示 ---------- */}
       {(loadError || qualityNotice) && (
-        <div className="player-toast-wrap">
-          {loadError ? (
-            <div className="player-toast player-toast--error" role="alert" title={loadError}>
-              <span className="player-toast__label">播放失败</span>
-              <span className="player-toast__text">{loadError}</span>
-            </div>
-          ) : (
-            <div className="player-toast player-toast--notice" role="status" title={qualityNotice || ''}>
-              <span className="player-toast__label">音质</span>
-              <span className="player-toast__text">{qualityNotice}</span>
-            </div>
-          )}
-        </div>
+        loadError ? (
+          <div className="u-toast u-toast--error" role="alert" title={loadError}>
+            <span className="u-toast__label">播放失败</span>
+            <span className="u-toast__text">{loadError}</span>
+          </div>
+        ) : (
+          <div className="u-toast u-toast--notice" role="status" title={qualityNotice || ''}>
+            <span className="u-toast__label">音质</span>
+            <span className="u-toast__text">{qualityNotice}</span>
+          </div>
+        )
       )}
 
+      {/* ---------- 抽屉 ---------- */}
       {lyricOpen && (
-        <aside className="side-drawer" aria-label="歌词">
-          <div className="side-drawer__head">
-            <div className="side-drawer__title">歌词</div>
-            <button className="pb-btn" onClick={closeDrawer} title="关闭歌词" aria-label="关闭歌词">
-              <IconClose size={15} />
+        <aside className="u-drawer" aria-label="歌词">
+          <div className="u-drawer__head">
+            <div className="u-drawer__title">歌词</div>
+            <button className="u-icon-btn" onClick={closeDrawer} title="关闭歌词">
+              <IconClose size={16} />
             </button>
           </div>
-          <div className="side-drawer__body" style={{ padding: '0 6px' }}>
+          <div className="u-drawer__body">
             <LyricPanel />
           </div>
         </aside>
       )}
-
 
       {queueOpen && <QueuePanel onClose={closeDrawer} />}
     </div>

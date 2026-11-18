@@ -3,19 +3,28 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/store/auth'
 import {
   IconHome, IconSearch, IconCompass, IconRadar, IconHeartMode, IconRoam,
-  IconPlaylist, IconRank, IconHeart, IconStar, IconCloud, IconUser, IconMusic, IconSettings,
+  IconPlaylist, IconRank, IconHeart, IconStar, IconCloud, IconSettings,
   IconSun, IconMoon,
 } from './Icons'
 import { coverUrl } from '@/api/ncm'
 import { useTheme } from '@/store/theme'
 
+/**
+ * 侧边栏（iOS 26 风格）
+ *
+ * 视觉：浮起的玻璃板 —— 四周有外边距、大圆角、独立阴影，
+ * 与内容区之间留缝。这是 iOS 26 与旧版"贴边实心条"最大的差别。
+ *
+ * 结构：品牌 -> 三组导航 -> 底部用户区。
+ * 类名全部走 ui.css 的 .sidebar / .nav-item，不再写内联样式。
+ */
 export function Sidebar() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const theme = useTheme((st) => st.theme)
   const toggleTheme = useTheme((st) => st.toggle)
 
-  const items = [
+  const primary = [
     { to: '/home', label: '发现音乐', icon: <IconHome /> },
     { to: '/search', label: '搜索', icon: <IconSearch /> },
   ]
@@ -36,73 +45,74 @@ export function Sidebar() {
   ]
 
   const NavItem = ({ to, label, icon }: { to: string; label: string; icon: React.ReactNode }) => (
-    <NavLink to={to} className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
-      <span className="ico">{icon}</span>
+    <NavLink
+      to={to}
+      className={({ isActive }) => `nav-item${isActive ? ' is-active' : ''}`}
+    >
+      <span className="nav-item__icon">{icon}</span>
       <span>{label}</span>
     </NavLink>
   )
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">
+      {/* 品牌 */}
+      <div className="sidebar__brand">
         <div className="brand-mark">云</div>
         <div className="brand-name">云娘音乐</div>
       </div>
 
-      <div className="sidebar-group">
-        {items.map((i) => <NavItem key={i.to} {...i} />)}
-      </div>
+      {/* 主导航 */}
+      <nav className="sidebar__group">
+        {primary.map((i) => <NavItem key={i.to} {...i} />)}
+      </nav>
 
-      <div className="sidebar-group">
-        <div className="sidebar-group-title">推荐</div>
+      {/* 推荐 */}
+      <nav className="sidebar__group">
+        <div className="sidebar__group-title">推荐</div>
         {recommend.map((i) => <NavItem key={i.to} {...i} />)}
-      </div>
+      </nav>
 
-      <div className="sidebar-group">
-        <div className="sidebar-group-title">我的音乐</div>
+      {/* 我的音乐 */}
+      <nav className="sidebar__group">
+        <div className="sidebar__group-title">我的音乐</div>
         {library.map((i) => <NavItem key={i.to} {...i} />)}
+
+        {/* 主题切换：与导航项同形，但用 button */}
         <button
-          className="sidebar-item"
+          className="nav-item"
           onClick={toggleTheme}
           title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
-          aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
         >
-          <span className="ico">{theme === 'dark' ? <IconSun /> : <IconMoon />}</span>
+          <span className="nav-item__icon">
+            {theme === 'dark' ? <IconSun /> : <IconMoon />}
+          </span>
           <span>{theme === 'dark' ? '浅色模式' : '深色模式'}</span>
         </button>
-      </div>
+      </nav>
 
-      <div className="sidebar-group">
+      {/* 设置 */}
+      <nav className="sidebar__group">
         <NavItem to="/settings" label="设置" icon={<IconSettings />} />
-      </div>
+      </nav>
 
-      <div style={{ marginTop: 'auto', padding: '10px 12px 4px' }}>
+      {/* 用户区 */}
+      <div className="sidebar__footer">
         {user && (
-          <div
-            onClick={() => navigate('/settings')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 9, padding: '8px 8px',
-              borderRadius: 8, cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            title="点击进入设置"
-          >
+          <button className="user-chip" onClick={() => navigate('/settings')} title="账号设置">
             <img
-              src={coverUrl(user.avatarUrl, 60)}
+              className="user-chip__avatar"
+              src={coverUrl(user.avatarUrl, 80)}
               alt=""
-              style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: 'var(--bg-3)' }}
             />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="text-ellipsis" style={{ fontSize: 12.5 }}>{user.nickname}</div>
-              <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
+            <div className="user-chip__meta">
+              <div className="user-chip__name">{user.nickname}</div>
+              <div className="user-chip__sub">
                 {user.vipType && user.vipType > 0 ? '黑胶 VIP' : '普通用户'}
               </div>
             </div>
-            <span style={{ color: 'var(--text-3)', display: 'grid', placeItems: 'center' }}>
-              <IconSettings size={15} />
-            </span>
-          </div>
+            <span className="nav-item__icon"><IconSettings size={15} /></span>
+          </button>
         )}
       </div>
     </aside>

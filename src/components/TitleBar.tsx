@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { IconBack, IconForward, IconMin, IconMax, IconRestore, IconClose } from './Icons'
 
+/**
+ * 标题栏（iOS 26 风格）
+ *
+ * 视觉：细（44px）、半透明、底部 0.5px 分隔线。
+ * 左侧是导航箭头 + 应用名，右侧是窗口控制（关闭键悬停变红，沿用系统惯例）。
+ */
 export function TitleBar() {
   const navigate = useNavigate()
-  const location = useLocation()
   const [maxed, setMaxed] = useState(false)
 
   useEffect(() => {
@@ -14,30 +19,40 @@ export function TitleBar() {
   }, [])
 
   return (
-    <div className="titlebar">
-      <div className="titlebar-left">
-        <div className="titlebar-nav">
-          <button className="nav-btn" onClick={() => navigate(-1)} title="后退">
-            <IconBack size={15} />
-          </button>
-          <button className="nav-btn" onClick={() => navigate(1)} title="前进">
-            <IconForward size={15} />
-          </button>
-        </div>
-        <span className="titlebar-title">云娘音乐</span>
+    <header className="app-titlebar">
+      <div className="app-titlebar__side">
+        <button className="u-icon-btn" onClick={() => navigate(-1)} title="后退">
+          <IconBack size={15} />
+        </button>
+        <button className="u-icon-btn" onClick={() => navigate(1)} title="前进">
+          <IconForward size={15} />
+        </button>
+        <span className="app-titlebar__title u-ml-2">云娘音乐</span>
       </div>
 
-      <div className="titlebar-right">
-        <button className="win-btn" onClick={() => window.yun.winMinimize()} title="最小化">
+      <div className="app-titlebar__side">
+        <button
+          className="u-icon-btn"
+          onClick={() => window.yun.winMinimize()}
+          title="最小化"
+        >
           <IconMin size={15} />
         </button>
-        <button className="win-btn" onClick={() => window.yun.winMaximize()} title={maxed ? '还原' : '最大化'}>
+        <button
+          className="u-icon-btn"
+          onClick={() => window.yun.winMaximize()}
+          title={maxed ? '还原' : '最大化'}
+        >
           {maxed ? <IconRestore size={13} /> : <IconMax size={13} />}
         </button>
-        <button className="win-btn close" onClick={() => window.yun.winClose()} title="关闭">
+        <button
+          className="u-icon-btn u-icon-btn--close"
+          onClick={() => window.yun.winClose()}
+          title="关闭"
+        >
           <IconClose size={15} />
         </button>
       </div>
-    </div>
+    </header>
   )
 }
