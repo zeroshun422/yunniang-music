@@ -40,10 +40,17 @@ const NCM_API_PORT_MAX = 47240
 // Chromium 沙箱策略
 //
 // 默认保留沙箱（Electron 的安全基线）。仅在以下情况放宽：
-//   1. 用户显式设置 YUNNIANG_DISABLE_SANDBOX=1（如 AppImage 在受限内核上启动失败）
+//   1. 用户显式设置 YUNNIANG_DISABLE_SANDBOX=1（或 Electron 原生的
+//      ELECTRON_DISABLE_SANDBOX=1，那个由原生层更早读取）
 //   2. 检测到 chrome-sandbox 权限不正确（打包后常见，否则会直接启动失败）
 //
-// 说明：早期版本此处条件写反了（`!== '1'` 反而默认禁用沙箱），已修正。
+// 说明 1：早期版本此处条件写反了（`!== '1'` 反而默认禁用沙箱），已修正。
+// 说明 2（重要）：本函数救不了「chrome-sandbox 存在但缺 SUID」这一种情况。
+//   Chromium 的 SUID helper 校验发生在 C++ 层、JS 还没开始执行，会直接 FATAL 退出。
+//   实测：不带任何参数启动时，下面那行 console.warn 一次都不会打印，说明代码没跑到。
+//   所以这是「权限已经正确、但其他原因需要放宽」时的兜底，不是缺 SUID 的逃生门。
+//   缺 SUID 的正解是安装时 chmod 4755（见 build/after-install.sh），
+//   临时绕过用 `ELECTRON_DISABLE_SANDBOX=1 <bin>` 或 `--no-sandbox`。
 function shouldDisableSandbox(): boolean {
   if (process.env.YUNNIANG_DISABLE_SANDBOX === '1') return true
   if (process.platform !== 'linux') return false

@@ -2,6 +2,78 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：修复 bug 升 PATCH，新增功能升 MINOR，重大变更升 MAJOR。
 
+## [2.0.3] - 2026-11-24
+
+修复 Ubuntu 24.04 上「.deb 能装上但一启动就崩溃」。
+
+### 现象
+
+```
+FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:172
+The SUID sandbox helper binary was found, but is not configured correctly.
+Rather than run without sandboxing I'm aborting now.
+You need to make sure that /opt/云娘音乐/chrome-sandbox is owned by root and has mode 4755.
+```
+
+`/opt/云娘音乐/chrome-sandbox` 实际是 `-rwxr-xr-x root root`，缺 SUID 位。
+
+### 根因：自定义 postinst 整份替换掉了内置模板
+
+`electron-builder.yml` 里的 `deb.afterInstall: build/after-install.sh` 会**完全取代**
+`app-builder-lib/templates/linux/after-install.tpl`，而旧的自定义脚本只做了
+`update-desktop-database` + `gtk-update-icon-cache`，于是内置模板里这些逻辑全部丢失：
+
+| 丢失的能力 | 后果 |
+|---|---|
+| `chmod 4755 chrome-sandbox` | 启动即 FATAL（本文主问题） |
+| `update-alternatives --install` | 没有 `/usr/bin/yunniang-music` 命令入口 |
+| 安装 `resources/apparmor-profile` 到 `/etc/apparmor.d/` | Ubuntu 24 上 Electron namespace sandbox 被 userns 限制卡住 |
+
+### 为什么不照抄内置模板
+
+内置模板用 `unshare --user true` 探测 userns，成功则 `chmod 0755`、失败才 `chmod 4755`。
+实测本机 `kernel.apparmor_restrict_unprivileged_userns=1`，但普通 shell 的
+`unshare --user true` 仍然返回成功 → 模板会选 `0755` → 依然崩。
+而 Chromium 只要发现 `chrome-sandbox` 存在却权限不对就直接 abort，不会回退到 userns sandbox。
+
+因此新脚本**无条件** `chown root:root` + `chmod 4755`，并在 SUID 不可用（如 `/opt` 在
+`nosuid` 挂载点）时明确告警，而不是静默失败。
+
+### 另外修掉一个假的逃生门
+
+`electron/main.ts` 里 `YUNNIANG_DISABLE_SANDBOX=1` 的判断位于 JS 层，而 Chromium 的
+SUID 检查在原生层、JS 执行之前就完成了。实测无参数启动时，
+`[sandbox] chrome-sandbox 缺少 SUID/root 属主` 这行警告**一次都没打印**（`grep -c` 为 0），
+证明该分支根本没被执行到。
+
+真正有效的是 Electron 内置的 `ELECTRON_DISABLE_SANDBOX=1`（原生层读取）：
+
+```bash
+ELECTRON_DISABLE_SANDBOX=1 yunniang-music
+```
+
+已在本文档与告警信息中改用正确的变量名。
+
+### 关于 AppImage
+
+Ubuntu 24.04 只带 `libfuse3-3`，`libfuse2` 已改名为 `libfuse2t64` 且默认不装，直接运行
+AppImage 会报 `dlopen(): error loading libfuse.so.2`。需要：
+
+```bash
+sudo apt install libfuse2t64
+```
+
+AppImage 内的 `chrome-sandbox` 同样是 `0755`，可能仍会撞上同一个 SUID 问题，
+此时用 `ELECTRON_DISABLE_SANDBOX=1 ./yunniang-music-2.0.3-x86_64.AppImage` 启动。
+
+### 验证
+
+- `bash -n build/after-install.sh` 语法通过
+- 模板宏 `${executable}` / `${sanitizedProductName}` 均在 `bashTemplateOptions` 中定义
+- 重新打包后 `dpkg-deb --ctrl-tarfile` 确认 postinst 含 `chmod 4755`
+- 安装后 `stat -c '%a %U:%G' /opt/云娘音乐/chrome-sandbox` 应为 `4755 root:root`
+- `ELECTRON_DISABLE_SANDBOX=1` 与 `--no-sandbox` 两条临时启动路径均已实测可出窗口
+
 ## [2.0.2] - 2026-11-19
 
 修复「非会员完全无法播放（level=standard 无链接）」。
