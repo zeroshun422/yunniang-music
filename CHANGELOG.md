@@ -2,6 +2,69 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：修复 bug 升 PATCH，新增功能升 MINOR，重大变更升 MAJOR。
 
+## [2.0.4] - 2026-11-27
+
+修复桌面歌词窗口「背景是一整块纯色矩形，盖住壁纸」。
+
+### 症状
+
+桌面歌词窗口本该是透明悬浮在桌面上的歌词，实际显示成一整块纯白矩形
+（深色主题下是纯黑），完全看不到壁纸，像「背景没设成透明」。
+
+### 根因：`body::before` 没被关掉
+
+`tokens.css:322` 给主窗口加了一层「环境光」伪元素，作为玻璃组件可被模糊的底图：
+
+```css
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(...), radial-gradient(...), radial-gradient(...),
+    var(--aurora-base);   /* ← 不透明：#f2f2f7 / #000000 */
+}
+```
+
+桌面歌词走的是同一个 `index.html` 和同一套 CSS，只是给 `<body>` 加了
+`desktop-lyric-body` 类。而旧规则只覆盖了 body 自身：
+
+```css
+body.desktop-lyric-body { background: transparent; }
+```
+
+**伪元素是独立的绘制层，覆盖 body 的 background 管不到它。**
+`--aurora-base` 又是不透明色，于是整个窗口被它填满。
+
+用真实窗口读 computed style 复核（修复前）：
+
+```
+body                     → rgba(0,0,0,0)      ✅
+body::before             → display:block, bg-color: rgb(242,242,247)  ❌
+```
+
+### 修法
+
+```css
+body.desktop-lyric-body::before { display: none; }
+```
+
+修复后 `body::before` 的 computed `display` 变为 `none`，窗口真正透出桌面。
+
+### 顺带修掉的第二个问题
+
+透明修好后立刻暴露：只有主歌词有深色衬底，**翻译和下一句直接压在背景上**。
+遇到浅色壁纸时那两行白字几乎不可读。
+
+现在三行都有衬底，透明度递减以保持层次（当前 0.34 > 翻译 0.26 > 下一句 0.18），
+并补齐 `line-height` 与内边距，避免行距过挤。
+
+### 验证
+
+- 真实 Electron 透明窗口 + 灌入真实歌词，截图确认桌面文字能透过歌词层可见
+- 修复前 `body::before` computed display 为 `block`、底色 `rgb(242,242,247)`；
+  修复后为 `none`
+- `typecheck` 0 错误；`npm test` 109/109
+
 ## [2.0.3] - 2026-11-24
 
 修复 Ubuntu 24.04 上「.deb 能装上但一启动就崩溃」。

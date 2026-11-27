@@ -657,6 +657,16 @@ body.desktop-lyric-body {
   overflow: hidden;
 }
 
+/* tokens.css 里 body::before 是「环境光层」，给主窗口的玻璃提供可被模糊的底图：
+     radial-gradient(...) , var(--aurora-base)
+   aurora-base 是**不透明**的（亮 #f2f2f7 / 暗 #000000），所以它必须在透明窗口里关掉，
+   只覆盖 body 自身的 background 是不够的——伪元素是独立的绘制层。
+   漏掉这一条的症状：桌面歌词窗口显示一整块纯白（或深色模式下纯黑）矩形，
+   完全盖住壁纸，看起来像「背景不对」而不是「没透明」。 */
+body.desktop-lyric-body::before {
+  display: none;
+}
+
 .desktop-lyric {
   height: 100vh;
   display: flex;
@@ -674,22 +684,32 @@ body.desktop-lyric-body {
   font-weight: var(--fw-bold);
   color: #ffffff;
   line-height: 1.35;
-  padding: 2px var(--sp-4);
+  padding: 4px var(--sp-4);
   border-radius: var(--r-md);
   /* 透明窗口上不能用 backdrop-filter（X11 下会整块变黑），
      用一层淡暗色衬底保证任何壁纸下可读 */
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.34);
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
 }
 
+/* 翻译与下一句同样需要衬底，否则遇到浅色壁纸时白字直接糊在背景上。
+   透明度递减，保持「当前 > 翻译 > 下一句」的视觉层次，不要让三行等重。 */
 .dl-trans {
   font-size: 17px;
-  color: rgba(255, 255, 255, 0.86);
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.4;
+  padding: 2px var(--sp-3);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.26);
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
 }
 
 .dl-next {
   font-size: var(--fs-sub);
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.62);
+  line-height: 1.4;
+  padding: 2px var(--sp-3);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.18);
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
 }
